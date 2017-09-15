@@ -37,6 +37,9 @@ type TfJobClient interface {
 	// List returns a list of TfJobs
 	List(ns string) (*spec.TfJobList, error)
 
+	// Create a TfJob
+	Create(ns string, j *spec.TfJob) (*spec.TfJob, error)
+
 	// Update a TfJob.
 	Update(ns string, c *spec.TfJob) (*spec.TfJob, error)
 
