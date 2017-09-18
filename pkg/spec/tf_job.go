@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
 	"github.com/jlewi/mlkube.io/pkg/util"
-	"github.com/golang/protobuf/proto"
+	//"github.com/golang/protobuf/proto"
 )
 
 const (
@@ -111,12 +111,12 @@ func (c *TfJobSpec) Validate() error {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
 
-		if r.TfReplicaType == MASTER && *r.Replicas != 1 {
+		if r.TfReplicaType == MASTER && r.Replicas != 1 {
 			return errors.New("The MASTER must have Replicas = 1")
 		}
 
-		if r.TfPort == nil {
-			return errors.New("tfReplicaSpec.TfPort can't be nil.")
+		if r.TfPort == 0 {
+			return errors.New("tfReplicaSpec.TfPort can't be 0.")
 		}
 
 		// Make sure the replica type is valid.
@@ -212,17 +212,17 @@ func (c *TfJobSpec) SetDefaults() error {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
 
-		if r.TfPort == nil {
-			r.TfPort = proto.Int32(TfPort)
+		if r.TfPort == 0 {
+			r.TfPort = TfPort
 		}
 
 		if string(r.TfReplicaType) == "" {
 			r.TfReplicaType = MASTER
 		}
 
-		if r.Replicas == nil {
-			r.Replicas = proto.Int32(Replicas)
-		}
+		//if r.Replicas == nil {
+		//	r.Replicas = proto.Int32(Replicas)
+		//}
 	}
 	return nil
 }
