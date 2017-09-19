@@ -56,7 +56,7 @@ func init() {
 	flag.Parse()
 
 	// Workaround for watching TPR resource.
-	restCfg, err := k8sutil.InClusterConfig()
+	restCfg, err := k8sutil.GetClusterConfig()
 	if err != nil {
 		panic(err)
 	}

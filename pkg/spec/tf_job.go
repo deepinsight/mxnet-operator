@@ -8,8 +8,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
-	"github.com/jlewi/mlkube.io/pkg/util"
+	"github.com/deepinsight/mlkube.io/pkg/util"
 	//"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 )
 
 const (
@@ -87,10 +88,10 @@ type TfReplicaSpec struct {
 	// Defaults to 1.
 	// More info: http://kubernetes.io/docs/user-guide/replication-controller#what-is-a-replication-controller
 	// +optional
-	Replicas      int32          `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"`
+	Replicas      *int32          `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"`
 	Template *v1.PodTemplateSpec `json:"template,omitempty" protobuf:"bytes,3,opt,name=template"`
 	// TfPort is the port to use for TF services.
-	TfPort        int32 `json:"tfPort,omitempty" protobuf:"varint,1,opt,name=tfPort"`
+	TfPort        *int32 `json:"tfPort,omitempty" protobuf:"varint,1,opt,name=tfPort"`
 	TfReplicaType `json:"tfReplicaType"`
 }
 
@@ -111,12 +112,12 @@ func (c *TfJobSpec) Validate() error {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
 
-		if r.TfReplicaType == MASTER && r.Replicas != 1 {
+		if r.TfReplicaType == MASTER && *r.Replicas != 1 {
 			return errors.New("The MASTER must have Replicas = 1")
 		}
 
-		if r.TfPort == 0 {
-			return errors.New("tfReplicaSpec.TfPort can't be 0.")
+		if r.TfPort == nil {
+			return errors.New("tfReplicaSpec.TfPort can't be nil.")
 		}
 
 		// Make sure the replica type is valid.
@@ -212,8 +213,8 @@ func (c *TfJobSpec) SetDefaults() error {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
 
-		if r.TfPort == 0 {
-			r.TfPort = TfPort
+		if r.TfPort == nil {
+			r.TfPort = proto.Int32(TfPort)
 		}
 
 		if string(r.TfReplicaType) == "" {
