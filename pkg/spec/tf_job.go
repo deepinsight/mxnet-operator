@@ -209,6 +209,10 @@ func (c *TfJobSpec) ConfigureAccelerators(accelerators map[string]AcceleratorCon
 func (c *TfJobSpec) SetDefaults() error {
 	// Check that each replica has a TensorFlow container.
 	for _, r := range c.ReplicaSpecs {
+		if r == nil {
+			return fmt.Errorf("ReplicaSpecs contain nil")
+		}
+
 		if r.Template == nil {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
@@ -221,9 +225,9 @@ func (c *TfJobSpec) SetDefaults() error {
 			r.TfReplicaType = MASTER
 		}
 
-		//if r.Replicas == nil {
-		//	r.Replicas = proto.Int32(Replicas)
-		//}
+		if r.Replicas == nil {
+			r.Replicas = proto.Int32(Replicas)
+		}
 	}
 	return nil
 }
