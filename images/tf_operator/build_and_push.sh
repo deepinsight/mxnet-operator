@@ -15,7 +15,6 @@ if [ -n "$CHANGES" ]; then
   DIFFHASH=${DIFFHASH:0:7}
   GITHASH=${GITHASH}-dirty-${DIFFHASH}
 fi
-IMAGE=${REGISTRY}/tf_operator:${GITHASH}
 
 DIR=`mktemp -d`
 echo Use ${DIR} as context
@@ -24,7 +23,8 @@ go install github.com/deepinsight/mlkube.io/test/e2e
 cp ${GOPATH}/bin/tf_operator ${DIR}/
 cp ${GOPATH}/bin/e2e ${DIR}/
 cp ${SRC_DIR}/Dockerfile ${DIR}/
-
-docker build -t $IMAGE -f ${DIR}/Dockerfile ${DIR}
-gcloud docker -- push $IMAGE
+REGISTRY=10.199.192.16
+IMAGE=${REGISTRY}/tensorflow/tf_operator:1.7-${GITHASH}
+docker build --build-arg http_proxy=http://172.16.22.7:8118 -t $IMAGE -f ${DIR}/Dockerfile ${DIR}
+docker push $IMAGE
 echo pushed $IMAGE
