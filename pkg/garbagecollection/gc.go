@@ -84,7 +84,7 @@ func (gc *GC) collectResources(option metav1.ListOptions, runningSet map[types.U
 }
 
 func (gc *GC) collectPods(option metav1.ListOptions, runningSet map[types.UID]bool) error {
-	pods, err := gc.kubecli.CoreV1().Pods(gc.ns).List(option)
+	pods, err := gc.kubecli.CoreV1().Pods("").List(option)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (gc *GC) collectPods(option metav1.ListOptions, runningSet map[types.UID]bo
 		// Pods failed due to liveness probe are also collected
 		if !runningSet[p.OwnerReferences[0].UID] || p.Status.Phase == v1.PodFailed {
 			// kill bad pods without grace period to kill it immediately
-			err = gc.kubecli.CoreV1().Pods(gc.ns).Delete(p.GetName(), metav1.NewDeleteOptions(0))
+			err = gc.kubecli.CoreV1().Pods(p.ObjectMeta.Namespace).Delete(p.GetName(), metav1.NewDeleteOptions(0))
 			if err != nil && !k8sutil.IsKubernetesResourceNotFoundError(err) {
 				return err
 			}
@@ -108,7 +108,7 @@ func (gc *GC) collectPods(option metav1.ListOptions, runningSet map[types.UID]bo
 }
 
 func (gc *GC) collectServices(option metav1.ListOptions, runningSet map[types.UID]bool) error {
-	srvs, err := gc.kubecli.CoreV1().Services(gc.ns).List(option)
+	srvs, err := gc.kubecli.CoreV1().Services("").List(option)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func (gc *GC) collectServices(option metav1.ListOptions, runningSet map[types.UI
 			continue
 		}
 		if !runningSet[srv.OwnerReferences[0].UID] {
-			err = gc.kubecli.CoreV1().Services(gc.ns).Delete(srv.GetName(), nil)
+			err = gc.kubecli.CoreV1().Services(srv.ObjectMeta.Namespace).Delete(srv.GetName(), nil)
 			if err != nil && !k8sutil.IsKubernetesResourceNotFoundError(err) {
 				return err
 			}
@@ -131,7 +131,7 @@ func (gc *GC) collectServices(option metav1.ListOptions, runningSet map[types.UI
 }
 
 func (gc *GC) collectDeployment(option metav1.ListOptions, runningSet map[types.UID]bool) error {
-	ds, err := gc.kubecli.AppsV1beta1().Deployments(gc.ns).List(option)
+	ds, err := gc.kubecli.AppsV1beta1().Deployments("").List(option)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (gc *GC) collectDeployment(option metav1.ListOptions, runningSet map[types.
 			continue
 		}
 		if !runningSet[d.OwnerReferences[0].UID] {
-			err = gc.kubecli.AppsV1beta1().Deployments(gc.ns).Delete(d.GetName(), k8sutil.CascadeDeleteOptions(0))
+			err = gc.kubecli.AppsV1beta1().Deployments(d.ObjectMeta.Namespace).Delete(d.GetName(), k8sutil.CascadeDeleteOptions(0))
 			if err != nil {
 				if !k8sutil.IsKubernetesResourceNotFoundError(err) {
 					return err

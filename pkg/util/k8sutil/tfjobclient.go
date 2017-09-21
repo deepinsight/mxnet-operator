@@ -120,7 +120,7 @@ func (c *TfJobRestClient) List(ns string) (*spec.TfJobList, error) {
 }
 
 func listTfJobsURI(ns string) string {
-	return fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s", spec.CRDGroup, spec.CRDVersion, ns, spec.CRDKindPlural)
+	return fmt.Sprintf("/apis/%s/%s/%s", spec.CRDGroup, spec.CRDVersion, spec.CRDKindPlural)
 }
 
 func (c *TfJobRestClient) Create(ns string, j *spec.TfJob) (*spec.TfJob, error) {
