@@ -123,8 +123,8 @@ func (c *Controller) handleTfJobEvent(event *Event) error {
 
 	if tfjob.Status.IsFailed() {
 		if event.Type == kwatch.Deleted {
-			delete(c.jobs, tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name)
-			delete(c.jobRVs, tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name)
+			delete(c.jobs, tfjob.Key())
+			delete(c.jobRVs, tfjob.Key())
 			return nil
 		}
 		return fmt.Errorf("ignore failed TfJob (%s). Please delete its CRD", tfjob.Metadata.Name)
@@ -143,9 +143,9 @@ func (c *Controller) handleTfJobEvent(event *Event) error {
 			return err
 		}
 
-		c.stopChMap[tfjob.Metadata.Name] = stopC
-		c.jobs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name] = trainingJob
-		c.jobRVs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name] = tfjob.Metadata.ResourceVersion
+		c.stopChMap[tfjob.Key()] = stopC
+		c.jobs[tfjob.Key()] = trainingJob
+		c.jobRVs[tfjob.Key()] = tfjob.Metadata.ResourceVersion
 
 	//case kwatch.Modified:
 	//  if _, ok := c.jobs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name]; !ok {
@@ -155,12 +155,12 @@ func (c *Controller) handleTfJobEvent(event *Event) error {
 	//  c.jobRVs[tfjob.Metadata.Name] = tfjob.Metadata.ResourceVersion
 	//
 	case kwatch.Deleted:
-		if _, ok := c.jobs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name]; !ok {
+		if _, ok := c.jobs[tfjob.Key()]; !ok {
 			return fmt.Errorf("unsafe state. TfJob was never created but we received event (%s)", event.Type)
 		}
-		c.jobs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name].Delete()
-		delete(c.jobs, tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name)
-		delete(c.jobRVs, tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name)
+		c.jobs[tfjob.Key()].Delete()
+		delete(c.jobs, tfjob.Key())
+		delete(c.jobRVs, tfjob.Key())
 	}
 	return nil
 }
@@ -190,9 +190,9 @@ func (c *Controller) findAllTfJobs() (string, error) {
 			log.Errorf("traininer.NewJob() returned error; %v for job: %v", err, tfjob.Metadata.Name)
 			continue
 		}
-		c.stopChMap[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name] = stopC
-		c.jobs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name] = nc
-		c.jobRVs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name] = tfjob.Metadata.ResourceVersion
+		c.stopChMap[tfjob.Key()] = stopC
+		c.jobs[tfjob.Key()] = nc
+		c.jobRVs[tfjob.Key()] = tfjob.Metadata.ResourceVersion
 	}
 
 	return jobList.Metadata.ResourceVersion, nil

@@ -102,8 +102,8 @@ func initTensorBoard(clientSet kubernetes.Interface, tj *TrainingJob) (*TBReplic
 	return nil, nil
 }
 
-func NewJob(kubeCli kubernetes.Interface, tfJobClient k8sutil.TfJobClient, job *spec.TfJob, stopC <-chan struct{}, wg *sync.WaitGroup, config *spec.ControllerConfig) (*TrainingJob, error) {
-	j, err := initJob(kubeCli, tfJobClient, job, stopC, wg)
+func NewJob(kubeCli kubernetes.Interface, tfJobClient k8sutil.TfJobClient, tfjob *spec.TfJob, stopC <-chan struct{}, wg *sync.WaitGroup, config *spec.ControllerConfig) (*TrainingJob, error) {
+	j, err := initJob(kubeCli, tfJobClient, tfjob, stopC, wg)
 	if err != nil {
 		return nil, err
 	}

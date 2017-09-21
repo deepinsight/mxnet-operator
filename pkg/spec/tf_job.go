@@ -52,6 +52,11 @@ func (c *TfJob) AsOwner() metav1.OwnerReference {
 	}
 }
 
+// Key() is an unique key for TfJob to store in maps
+func (tfjob *TfJob) Key() string{
+	return tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name
+}
+
 // TODO(jlewi): Need to define the actual configuration for the TensorFlow TfJob.
 type TfJobSpec struct {
 	// TODO(jlewi): Can we we get rid of this and use some value from Kubernetes or a random ide.
