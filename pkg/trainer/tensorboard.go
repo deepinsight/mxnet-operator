@@ -16,7 +16,10 @@ import (
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
-const TbPort = 6006
+const (
+	TensorboardImage = "10.199.192.16/tensorflow/tensorflow:1.2.1"
+	TbPort = 6006
+)
 
 // TBReplicaSet represent the RS for the TensorBoard instance
 type TBReplicaSet struct {
@@ -133,7 +136,7 @@ func (s *TBReplicaSet) getDeploymentSpecTemplate() v1.PodTemplateSpec {
 	// TODO: make the TensorFlow image a parameter of the job operator.
 	c := &v1.Container{
 		Name:  s.jobName(),
-		Image: "tensorflow/tensorflow",
+		Image: TensorboardImage,
 		Command: []string{
 			"tensorboard", "--logdir", s.Spec.LogDir, "--host", "0.0.0.0",
 		},

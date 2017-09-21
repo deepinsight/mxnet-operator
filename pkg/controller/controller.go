@@ -167,6 +167,7 @@ func (c *Controller) handleTfJobEvent(event *Event) error {
 
 func (c *Controller) findAllTfJobs() (string, error) {
 	// TODO(jlewi): Need to implement this function.
+	// TODO: Need to find for all namespaces
 	log.Info("finding existing jobs...")
 	jobList, err := c.TfJobClient.List(c.Namespace)
 	if err != nil {
@@ -327,9 +328,9 @@ func (c *Controller) watch(watchVersion string) (<-chan *Event, <-chan error) {
 					if st.Code == http.StatusGone {
 						// event history is outdated.
 						// if nothing has changed, we can go back to watch again.
-						clusterList, err := c.TfJobClient.List(c.Namespace)
-						if err == nil && !c.isClustersCacheStale(clusterList.Items) {
-							watchVersion = clusterList.Metadata.ResourceVersion
+						jobList, err := c.TfJobClient.List(c.Namespace)
+						if err == nil && !c.isClustersCacheStale(jobList.Items) {
+							watchVersion = jobList.Metadata.ResourceVersion
 							break
 						}
 
