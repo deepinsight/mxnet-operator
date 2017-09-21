@@ -174,7 +174,7 @@ func run() error {
 	}
 
 	// Delete the job and make sure all subresources are properly garbage collected.
-	if err := tfJobClient.Delete(Namespace, name); err != nil {
+	if _, err := tfJobClient.Delete(Namespace, name); err != nil {
 		log.Fatal("Failed to delete TfJob %v; error %v", name, err)
 	}
 
