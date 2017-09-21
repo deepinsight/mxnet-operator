@@ -12,8 +12,6 @@
 
 package k8sutil
 
-// TODO(jlewi): We should rename this file to reflect the fact that we are using CRDs and not TPRs.
-
 import (
 	"encoding/json"
 	"fmt"
@@ -34,6 +32,9 @@ type TfJobClient interface {
 	// Get returns a TfJob
 	Get(ns string, name string) (*spec.TfJob, error)
 
+	// Delete a TfJob
+	Delete(ns string, name string) (*spec.TfJob, error)
+
 	// List returns a list of TfJobs
 	List(ns string) (*spec.TfJobList, error)
 
@@ -41,7 +42,7 @@ type TfJobClient interface {
 	Create(ns string, j *spec.TfJob) (*spec.TfJob, error)
 
 	// Update a TfJob.
-	Update(ns string, c *spec.TfJob) (*spec.TfJob, error)
+	Update(ns string, j *spec.TfJob) (*spec.TfJob, error)
 
 	// Watch TfJobs.
 	Watch(host, ns string, httpClient *http.Client, resourceVersion string) (*http.Response, error)
@@ -142,6 +143,14 @@ func (c *TfJobRestClient) Get(ns, name string) (*spec.TfJob, error) {
 	return readOutTfJob(b)
 }
 
+func (c *TfJobRestClient) Delete(ns, name string) (*spec.TfJob, error) {
+	b, err := c.restcli.Delete().Resource(spec.CRDKindPlural).Namespace(ns).Name(name).DoRaw()
+	if err != nil {
+		return nil, err
+	}
+	return readOutTfJob(b)
+}
+
 func (c *TfJobRestClient) Update(ns string, j *spec.TfJob) (*spec.TfJob, error) {
 	// Set the TypeMeta or we will get a BadRequest
 	j.TypeMeta.APIVersion = fmt.Sprintf("%v/%v", spec.CRDGroup, spec.CRDVersion)
@@ -151,11 +160,6 @@ func (c *TfJobRestClient) Update(ns string, j *spec.TfJob) (*spec.TfJob, error) 
 		return nil, err
 	}
 	return readOutTfJob(b)
-}
-
-func (c *TfJobRestClient) Delete(ns, name string) error {
-	_, err := c.restcli.Delete().Resource(spec.CRDKindPlural).Namespace(ns).DoRaw()
-	return err
 }
 
 func readOutTfJob(b []byte) (*spec.TfJob, error) {
