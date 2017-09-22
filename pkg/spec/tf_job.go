@@ -102,6 +102,7 @@ type TfReplicaSpec struct {
 
 type TensorBoardSpec struct {
 	//Location of TensorFlow event files
+	Image        string           `json:"image"`
 	LogDir       string           `json:"logDir"`
 	Volumes      []v1.Volume      `json:"volumes"`
 	VolumeMounts []v1.VolumeMount `json:"volumeMounts"`

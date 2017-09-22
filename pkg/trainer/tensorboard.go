@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	TensorboardImage = "10.199.192.16/tensorflow/tensorflow:1.2.1"
 	TbPort = 6006
 )
 
@@ -136,7 +135,7 @@ func (s *TBReplicaSet) getDeploymentSpecTemplate() v1.PodTemplateSpec {
 	// TODO: make the TensorFlow image a parameter of the job operator.
 	c := &v1.Container{
 		Name:  s.jobName(),
-		Image: TensorboardImage,
+		Image: s.Spec.Image,
 		Command: []string{
 			"tensorboard", "--logdir", s.Spec.LogDir, "--host", "0.0.0.0",
 		},

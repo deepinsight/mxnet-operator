@@ -103,6 +103,7 @@ func run() error {
 				},
 			},
 			TensorBoard: &spec.TensorBoardSpec{
+				Image:  "10.199.192.16/tensorflow/tensorflow:1.2.1",
 				LogDir: "/tmp/tensorflow",
 			},
 		},
