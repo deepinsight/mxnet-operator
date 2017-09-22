@@ -99,11 +99,50 @@ func (s *TBReplicaSet) Create() error {
 
 	if err != nil {
 		if k8s_errors.IsAlreadyExists(err) {
-			log.Infof("%v already exists.", s.jobName())
+			log.Infof("Deployment %v already exists.", s.jobName())
 		} else {
 			return err
 		}
 	}
+
+	ingress := &v1beta1.Ingress{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:   s.jobName(),
+			Labels: s.Labels(),
+		},
+		Spec: v1beta1.IngressSpec{
+			Rules: []v1beta1.IngressRule{
+				{
+					Host: s.Job.job.Metadata.Name + "." + s.Job.job.Metadata.Namespace + ".k8s.wanda.cn",
+					IngressRuleValue: v1beta1.IngressRuleValue{
+						HTTP: &v1beta1.HTTPIngressRuleValue{
+							[]v1beta1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: v1beta1.IngressBackend{
+										ServiceName: s.jobName(),
+										ServicePort: intstr.IntOrString{
+											IntVal: 80,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err = s.ClientSet.ExtensionsV1beta1().Ingresses(s.Job.job.Metadata.Namespace).Create(ingress)
+	if err != nil {
+		if k8s_errors.IsAlreadyExists(err) {
+			log.Infof("Ingress %v already exists.", s.jobName())
+		} else {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -179,5 +218,5 @@ func (s *TBReplicaSet) Labels() KubernetesLabels {
 }
 
 func (s *TBReplicaSet) jobName() string {
-	return fmt.Sprintf("tensorboard-%v", strings.ToLower(s.Job.job.Spec.RuntimeId))
+	return fmt.Sprintf("%v-tensorboard-%v", s.Job.job.Metadata.Name, strings.ToLower(s.Job.job.Spec.RuntimeId))
 }
