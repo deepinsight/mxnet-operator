@@ -1,4 +1,4 @@
-// training is a package for managing TensorFlow training jobs.
+// training is a package for managing MXNet training jobs.
 package trainer
 
 import (
@@ -6,18 +6,18 @@ import (
 
 	"reflect"
 
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
+	"github.com/deepinsight/mxnet-operator/pkg/util"
+	"github.com/deepinsight/mxnet-operator/pkg/util/k8sutil"
+	"github.com/deepinsight/mxnet-operator/pkg/util/retryutil"
 	log "github.com/golang/glog"
-	"github.com/deepinsight/mlkube.io/pkg/spec"
-	"github.com/deepinsight/mlkube.io/pkg/util"
-	"github.com/deepinsight/mlkube.io/pkg/util/k8sutil"
-	"github.com/deepinsight/mlkube.io/pkg/util/retryutil"
 
 	"math"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/deepinsight/mlkube.io/pkg/garbagecollection"
+	"github.com/deepinsight/mxnet-operator/pkg/garbagecollection"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
@@ -42,26 +42,24 @@ const (
 type jobEvent struct {
 	typ jobEventType
 	// TODO(jlewi): Rename cluster to job.
-	cluster *spec.TfJob
+	cluster *spec.MxJob
 }
 
 // TODO(jlewi): We should switch a New pattern and make trainingJob private so we can
 // ensure correctness on creation.
 type TrainingJob struct {
-	job *spec.TfJob
+	job *spec.MxJob
 
 	KubeCli kubernetes.Interface
 
-	Replicas []*TFReplicaSet
+	Replicas []*MXReplicaSet
 
-	TensorBoard *TBReplicaSet
-
-	tfJobClient k8sutil.TfJobClient
+	mxJobClient k8sutil.MxJobClient
 
 	// in memory state of the job.
 	// status is the source of truth after job struct is materialized. Changes to the status to be persisted
 	// should be made here.
-	status spec.TfJobStatus
+	status spec.MxJobStatus
 
 	memberCounter int
 
@@ -74,36 +72,27 @@ type TrainingJob struct {
 	gc *garbagecollection.GC
 }
 
-// ClusterSpec represents a cluster TensorFlow specification.
-// https://www.tensorflow.org/deploy/distributed#create_a_tftrainclusterspec_to_describe_the_cluster
+// ClusterSpec represents a cluster mxnet specification.
 // It is a map from job names to network addressess.
 type ClusterSpec map[string][]string
 
-func initJob(kubeCli kubernetes.Interface, tfJobClient k8sutil.TfJobClient, job *spec.TfJob, stopC <-chan struct{}, wg *sync.WaitGroup) (*TrainingJob, error) {
+func initJob(kubeCli kubernetes.Interface, mxJobClient k8sutil.MxJobClient, job *spec.MxJob, stopC <-chan struct{}, wg *sync.WaitGroup) (*TrainingJob, error) {
 	j := &TrainingJob{
 		KubeCli:     kubeCli,
-		tfJobClient: tfJobClient,
-		Replicas:    make([]*TFReplicaSet, 0),
-		TensorBoard: nil,
+		mxJobClient: mxJobClient,
+		Replicas:    make([]*MXReplicaSet, 0),
 		job:         job,
 		eventCh:     make(chan *jobEvent, 100),
 		stopCh:      make(chan struct{}),
 		status:      job.Status.Copy(),
-		gc:          garbagecollection.New(kubeCli, tfJobClient, job.Metadata.Namespace),
+		gc:          garbagecollection.New(kubeCli, mxJobClient, job.Metadata.Namespace),
 	}
 
 	return j, nil
 }
 
-func initTensorBoard(clientSet kubernetes.Interface, tj *TrainingJob) (*TBReplicaSet, error) {
-	if tj.job.Spec.TensorBoard != nil {
-		return NewTBReplicaSet(clientSet, *tj.job.Spec.TensorBoard, tj)
-	}
-	return nil, nil
-}
-
-func NewJob(kubeCli kubernetes.Interface, tfJobClient k8sutil.TfJobClient, tfjob *spec.TfJob, stopC <-chan struct{}, wg *sync.WaitGroup, config *spec.ControllerConfig) (*TrainingJob, error) {
-	j, err := initJob(kubeCli, tfJobClient, tfjob, stopC, wg)
+func NewJob(kubeCli kubernetes.Interface, mxJobClient k8sutil.MxJobClient, mxjob *spec.MxJob, stopC <-chan struct{}, wg *sync.WaitGroup, config *spec.ControllerConfig) (*TrainingJob, error) {
+	j, err := initJob(kubeCli, mxJobClient, mxjob, stopC, wg)
 	if err != nil {
 		return nil, err
 	}
@@ -113,12 +102,12 @@ func NewJob(kubeCli kubernetes.Interface, tfJobClient k8sutil.TfJobClient, tfjob
 		defer wg.Done()
 
 		if err := j.setup(config); err != nil {
-			log.Errorf("TfJob failed to setup: %v", err)
-			if j.status.Phase != spec.TfJobPhaseFailed {
+			log.Errorf("MxJob failed to setup: %v", err)
+			if j.status.Phase != spec.MxJobPhaseFailed {
 				j.status.SetReason(err.Error())
-				j.status.SetPhase(spec.TfJobPhaseFailed)
+				j.status.SetPhase(spec.MxJobPhaseFailed)
 				if err := j.updateTPRStatus(); err != nil {
-					log.Errorf("failed to update cluster phase (%v): %v", spec.TfJobPhaseFailed, err)
+					log.Errorf("failed to update cluster phase (%v): %v", spec.MxJobPhaseFailed, err)
 				}
 			}
 			return
@@ -136,16 +125,16 @@ func (j *TrainingJob) ClusterSpec() ClusterSpec {
 		replicaNames := make([]string, 0, *p.Spec.Replicas)
 
 		for i := int32(0); i < *p.Spec.Replicas; i++ {
-			replicaNames = append(replicaNames, fmt.Sprintf("%v:%v", p.jobName(i), p.Spec.TfPort))
+			replicaNames = append(replicaNames, fmt.Sprintf("%v:%v", p.jobName(i), p.Spec.PsRootPort))
 		}
 
-		clusterSpec[strings.ToLower(string(p.Spec.TfReplicaType))] = replicaNames
+		clusterSpec[strings.ToLower(string(p.Spec.MxReplicaType))] = replicaNames
 	}
 
 	return clusterSpec
 }
 
-// createResources creates all the replicas and TensorBoard if requested
+// createResources creates all the replicas
 func (j *TrainingJob) createResources() error {
 	for _, r := range j.Replicas {
 		if err := r.Create(); err != nil {
@@ -153,16 +142,10 @@ func (j *TrainingJob) createResources() error {
 		}
 	}
 
-	if j.TensorBoard != nil {
-		if err := j.TensorBoard.Create(); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
-// deleteResources deletes the replicas and TensorBoard it it was created
+// deleteResources deletes the replicas
 func (j *TrainingJob) deleteResources() error {
 	for _, r := range j.Replicas {
 		if err := r.Delete(); err != nil {
@@ -170,26 +153,21 @@ func (j *TrainingJob) deleteResources() error {
 		}
 	}
 
-	if j.TensorBoard != nil {
-		if err := j.TensorBoard.Delete(); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 // TODO(jlewi): We can probably delete this.
 
-//func replicaSetStatusToProto(r *TFReplicaSet, status *TFReplicaSetStatus) *tpb.TFReplicaSetStatus {
+//func replicaSetStatusToProto(r *MXReplicaSet, status *MXReplicaSetStatus) *tpb.MXReplicaSetStatus {
 //
-//	p := &tpb.TFReplicaSetStatus{
+//	p := &tpb.MXReplicaSetStatus{
 //		State: status.State.Enum(),
-//		// Type: r.Spec.TfReplicaTypeProcess.Type,
-//		ReplicaStates: make([]*tpb.TFReplicaSetStatus_ReplicaStates, 0),
+//		// Type: r.Spec.MxReplicaTypeProcess.Type,
+//		ReplicaStates: make([]*tpb.MXReplicaSetStatus_ReplicaStates, 0),
 //	}
 //
 //	for state, count := range status.ReplicasStates {
-//		p.ReplicaStates = append(p.ReplicaStates, &tpb.TFReplicaSetStatus_ReplicaStates{
+//		p.ReplicaStates = append(p.ReplicaStates, &tpb.MXReplicaSetStatus_ReplicaStates{
 //			State: state.Enum(),
 //			NumReplicas: proto.Int(count),
 //		})
@@ -197,21 +175,21 @@ func (j *TrainingJob) deleteResources() error {
 //	return p
 //}
 
-func (j *TrainingJob) GetStatus() (spec.State, []*spec.TfReplicaStatus, error) {
+func (j *TrainingJob) GetStatus() (spec.State, []*spec.MxReplicaStatus, error) {
 	state := spec.StateUnknown
-	replicaStatuses := make([]*spec.TfReplicaStatus, 0)
+	replicaStatuses := make([]*spec.MxReplicaStatus, 0)
 
 	// The state for each replica.
 	// TODO(jlewi): We will need to modify this code if we want to allow multiples of a given type of replica.
-	replicaSetStates := make(map[spec.TfReplicaType]spec.ReplicaState)
+	replicaSetStates := make(map[spec.MxReplicaType]spec.ReplicaState)
 
 	for _, r := range j.Replicas {
 		rStatus, err := r.GetStatus()
 		if err != nil {
-			log.Errorf("GetStatus() for %v returned error; %v", r.Spec.TfReplicaType, err)
+			log.Errorf("GetStatus() for %v returned error; %v", r.Spec.MxReplicaType, err)
 		}
 
-		replicaSetStates[r.Spec.TfReplicaType] = rStatus.State
+		replicaSetStates[r.Spec.MxReplicaType] = rStatus.State
 
 		replicaStatuses = append(replicaStatuses, &rStatus)
 
@@ -220,17 +198,17 @@ func (j *TrainingJob) GetStatus() (spec.State, []*spec.TfReplicaStatus, error) {
 			state = spec.StateFailed
 		}
 	}
+	/*
+		if v, ok := replicaSetStates[spec.MASTER]; ok && v == spec.ReplicaStateSucceeded {
+			state = spec.StateSucceeded
+			return state, replicaStatuses, nil
+		}
 
-	if v, ok := replicaSetStates[spec.MASTER]; ok && v == spec.ReplicaStateSucceeded {
-		state = spec.StateSucceeded
-		return state, replicaStatuses, nil
-	}
-
-	if v, ok := replicaSetStates[spec.MASTER]; ok && v == spec.ReplicaStateFailed {
-		state = spec.StateFailed
-		return state, replicaStatuses, nil
-	}
-
+		if v, ok := replicaSetStates[spec.MASTER]; ok && v == spec.ReplicaStateFailed {
+			state = spec.StateFailed
+			return state, replicaStatuses, nil
+		}
+	*/
 	state = spec.StateRunning
 	return state, replicaStatuses, nil
 }
@@ -304,18 +282,12 @@ func (j *TrainingJob) setup(config *spec.ControllerConfig) error {
 	}
 
 	for _, t := range j.job.Spec.ReplicaSpecs {
-		r, err := NewTFReplicaSet(j.KubeCli, *t, j)
+		r, err := NewMXReplicaSet(j.KubeCli, *t, j)
 		if err != nil {
 			return err
 		}
 		j.Replicas = append(j.Replicas, r)
 	}
-
-	tb, err := initTensorBoard(j.KubeCli, j)
-	if err != nil {
-		return err
-	}
-	j.TensorBoard = tb
 
 	if err := j.job.Spec.ConfigureAccelerators(config.Accelerators); err != nil {
 		return fmt.Errorf("ConfigureAccelerators(...) error; %v", err)
@@ -327,16 +299,16 @@ func (j *TrainingJob) setup(config *spec.ControllerConfig) error {
 
 	var shouldCreateCluster bool
 	switch j.status.Phase {
-	case spec.TfJobPhaseNone:
+	case spec.MxJobPhaseNone:
 		shouldCreateCluster = true
-		//case spec.TfJobPhaseCreating:
+		//case spec.MxJobPhaseCreating:
 		//	return errCreatedCluster
-	case spec.TfJobPhaseRunning:
+	case spec.MxJobPhaseRunning:
 		shouldCreateCluster = false
-	case spec.TfJobPhaseFailed:
+	case spec.MxJobPhaseFailed:
 		shouldCreateCluster = false
 	default:
-		return fmt.Errorf("unexpected TfJob phase: %s", j.status.Phase)
+		return fmt.Errorf("unexpected MxJob phase: %s", j.status.Phase)
 	}
 
 	if shouldCreateCluster {
@@ -345,16 +317,16 @@ func (j *TrainingJob) setup(config *spec.ControllerConfig) error {
 	return nil
 }
 
-// triggerCreatePhase sets the phase to TfJobPhaseCreating additional resource creation happens in TrainingJob.run
+// triggerCreatePhase sets the phase to MxJobPhaseCreating additional resource creation happens in TrainingJob.run
 // TODO(jlewi): Need to reconcile this function copied from the etcd core operator OS code with the pattern
-// for the TF job. What exactly do we want to do during the Create job phase? Right now the create method
+// for the MX job. What exactly do we want to do during the Create job phase? Right now the create method
 // is called on each invocation of reconcile in run to ensure all the required resources exist. Maybe there's
 // a better way?
 func (j *TrainingJob) triggerCreatePhase() error {
-	j.status.SetPhase(spec.TfJobPhaseCreating)
+	j.status.SetPhase(spec.MxJobPhaseCreating)
 
 	if err := j.updateTPRStatus(); err != nil {
-		return fmt.Errorf("cluster create: failed to update TfJob phase (%v): %v", spec.TfJobPhaseCreating, err)
+		return fmt.Errorf("cluster create: failed to update MxJob phase (%v): %v", spec.MxJobPhaseCreating, err)
 	}
 	log.Infof("Creating job: %v with Spec (%#v), Status (%#v)", j.job.Metadata.Name, j.job.Spec, j.job.Status)
 
@@ -391,7 +363,7 @@ func (j *TrainingJob) send(ev *jobEvent) {
 }
 
 // Update sends an update event for the job.
-func (j *TrainingJob) Update(newJob *spec.TfJob) {
+func (j *TrainingJob) Update(newJob *spec.MxJob) {
 	j.send(&jobEvent{
 		typ:     eventModifyJob,
 		cluster: newJob,
@@ -407,7 +379,7 @@ func (j *TrainingJob) updateTPRStatus() error {
 
 	newJob := j.job
 	newJob.Status = j.status
-	newJob, err := j.tfJobClient.Update(j.job.Metadata.Namespace, newJob)
+	newJob, err := j.mxJobClient.Update(j.job.Metadata.Namespace, newJob)
 	if err != nil {
 		return err
 	}
@@ -425,7 +397,7 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 		if clusterFailed {
 			j.reportFailedStatus()
 
-			log.Infof("Deleting the failed TfJob")
+			log.Infof("Deleting the failed MxJob")
 			j.delete()
 		}
 
@@ -433,7 +405,7 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 	}()
 
 	// Update the phase to running.
-	j.status.SetPhase(spec.TfJobPhaseRunning)
+	j.status.SetPhase(spec.MxJobPhaseRunning)
 	if err := j.updateTPRStatus(); err != nil {
 		log.Warningf("failed to update TPR status: %v", err)
 	}
@@ -457,16 +429,16 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 				// we shouldn't delete the pods when the jobs finish because leaving the pods
 				// allows us to get the logs from the pods after the job finishes.
 				//
-				log.Infof("TfJob is deleted by the user")
+				log.Infof("MxJob is deleted by the user")
 				// TODO(jlewi): This logic is probably insufficient.
-				if j.job.Status.Phase != spec.TfJobPhaseCleanUp {
-					j.status.SetPhase(spec.TfJobPhaseCleanUp)
+				if j.job.Status.Phase != spec.MxJobPhaseCleanUp {
+					j.status.SetPhase(spec.MxJobPhaseCleanUp)
 				}
 
 				if cErr := j.deleteResources(); cErr != nil {
 					log.Errorf("trainingJob.deleteResources() error; %v", cErr)
 				}
-				// j.status.SetPhase(spec.TfJobPhaseDone)
+				// j.status.SetPhase(spec.MxJobPhaseDone)
 				// Return from run because we want to stop reconciling the object.
 				return
 			}
@@ -475,7 +447,7 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 			// TODO(jlewi): Can we determine from the TPR status whether we should
 			// Create the resources or not? We need to ensure the resources exist so for
 			// now we always call Create.
-			if j.job.Status.Phase == spec.TfJobPhaseRunning {
+			if j.job.Status.Phase == spec.MxJobPhaseRunning {
 				// We call Create to make sure all the resources exist and are running.
 				if cErr := j.createResources(); cErr != nil {
 					log.Errorf("trainingJobCreateReplicas() error; %v", cErr)
@@ -490,11 +462,11 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 				// TODO(jlewi): We should update the Phase if we detect the job is done.
 				if state == spec.StateFailed {
 					log.Errorf("Master failed Job: %v.", j.job.Metadata.Name)
-					j.status.SetPhase(spec.TfJobPhaseDone)
+					j.status.SetPhase(spec.MxJobPhaseDone)
 					j.status.SetState(spec.StateFailed)
 				} else if state == spec.StateSucceeded {
 					log.Infof("Master succeeded Job: %v.", j.job.Metadata.Name)
-					j.status.SetPhase(spec.TfJobPhaseDone)
+					j.status.SetPhase(spec.MxJobPhaseDone)
 					j.status.SetState(spec.StateSucceeded)
 				} else {
 					log.V(1).Infof("Job %v status=%v", j.job.Metadata.Name, util.Pformat(j.status))
@@ -506,11 +478,11 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 				log.Warningf("Job %v, failed to update TPR status error: %v", j.job.Metadata.Name, err)
 			}
 
-			if j.job.Status.Phase == spec.TfJobPhaseCleanUp {
+			if j.job.Status.Phase == spec.MxJobPhaseCleanUp {
 				if cErr := j.deleteResources(); cErr != nil {
 					log.Errorf("Job %v trainingJob.Delete() error; %v", j.job.Metadata.Name, cErr)
 				}
-				// j.status.SetPhase(spec.TfJobPhaseDone)
+				// j.status.SetPhase(spec.MxJobPhaseDone)
 				// Return from run because we want to stop reconciling the object.
 				return
 			}
@@ -538,7 +510,7 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 	}
 }
 
-//func isSpecEqual(s1, s2 spec.TfJobSpec) bool {
+//func isSpecEqual(s1, s2 spec.MxJobSpec) bool {
 //	// TODO(jlewi): Need to implement this function.
 //	return false
 //	//if s1.Size != s2.Size || s1.Paused != s2.Paused || s1.Version != s2.Version {
@@ -552,7 +524,7 @@ func (j *TrainingJob) reportFailedStatus() {
 	retryInterval := 5 * time.Second
 
 	f := func() (bool, error) {
-		j.status.SetPhase(spec.TfJobPhaseFailed)
+		j.status.SetPhase(spec.MxJobPhaseFailed)
 		err := j.updateTPRStatus()
 		if err == nil || k8sutil.IsKubernetesResourceNotFoundError(err) {
 			return true, nil
@@ -563,7 +535,7 @@ func (j *TrainingJob) reportFailedStatus() {
 			return false, nil
 		}
 
-		cl, err := j.tfJobClient.Get(j.job.Metadata.Namespace, j.job.Metadata.Name)
+		cl, err := j.mxJobClient.Get(j.job.Metadata.Namespace, j.job.Metadata.Name)
 		if err != nil {
 			// Update (PUT) will return conflict even if object is deleted since we have UID set in object.
 			// Because it will check UID first and return something like:

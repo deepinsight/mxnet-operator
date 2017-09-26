@@ -15,8 +15,8 @@ IMAGE=${REGISTRY}/tf_operator:${GITHASH}
 
 DIR="/Users/moon/docker/dockerfiles/tf-operator"
 echo Use ${DIR} as context
-GOOS=linux GOARCH=amd64 go install github.com/deepinsight/mlkube.io/cmd/tf_operator
-GOOS=linux GOARCH=amd64 go install github.com/deepinsight/mlkube.io/test/e2e
+GOOS=linux GOARCH=amd64 go install github.com/deepinsight/mxnet-operator/cmd/tf_operator
+GOOS=linux GOARCH=amd64 go install github.com/deepinsight/mxnet-operator/test/e2e
 cp ${GOPATH}/bin/linux_amd64/tf_operator ${DIR}/
 cp ${GOPATH}/bin/linux_amd64/e2e ${DIR}/
 cp Dockerfile ${DIR}/

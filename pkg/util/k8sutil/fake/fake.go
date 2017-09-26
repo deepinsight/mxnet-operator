@@ -1,35 +1,36 @@
-// fake provides a fake implementation of TfJobClient suitable for use in testing.
+// fake provides a fake implementation of MxJobClient suitable for use in testing.
 package fake
 
 import (
-	"github.com/deepinsight/mlkube.io/pkg/spec"
 	"net/http"
 	"time"
+
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
 )
 
-type TfJobClientFake struct{}
+type MxJobClientFake struct{}
 
-func (c *TfJobClientFake) Get(ns string, name string) (*spec.TfJob, error) {
-	return &spec.TfJob{}, nil
+func (c *MxJobClientFake) Get(ns string, name string) (*spec.MxJob, error) {
+	return &spec.MxJob{}, nil
 }
 
-func (c *TfJobClientFake) List(ns string) (*spec.TfJobList, error) {
-	return &spec.TfJobList{}, nil
+func (c *MxJobClientFake) List(ns string) (*spec.MxJobList, error) {
+	return &spec.MxJobList{}, nil
 }
 
-// Update a TfJob.
-func (c *TfJobClientFake) Update(ns string, j *spec.TfJob) (*spec.TfJob, error) {
+// Update a MxJob.
+func (c *MxJobClientFake) Update(ns string, j *spec.MxJob) (*spec.MxJob, error) {
 	// TODO(jlewi): We should return a deep copy of j.
 	result := *j
 	return &result, nil
 }
 
-// Watch TfJobs.
-func (c *TfJobClientFake) Watch(host, ns string, httpClient *http.Client, resourceVersion string) (*http.Response, error) {
+// Watch MxJobs.
+func (c *MxJobClientFake) Watch(host, ns string, httpClient *http.Client, resourceVersion string) (*http.Response, error) {
 	return nil, nil
 }
 
-// WaitTPRReady blocks until the TfJob TPR is ready.
-func (c *TfJobClientFake) WaitTPRReady(interval, timeout time.Duration, ns string) error {
+// WaitTPRReady blocks until the MxJob TPR is ready.
+func (c *MxJobClientFake) WaitTPRReady(interval, timeout time.Duration, ns string) error {
 	return nil
 }

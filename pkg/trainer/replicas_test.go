@@ -10,25 +10,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
+	mxJobFake "github.com/deepinsight/mxnet-operator/pkg/util/k8sutil/fake"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
-	"github.com/deepinsight/mlkube.io/pkg/spec"
-	tfJobFake "github.com/deepinsight/mlkube.io/pkg/util/k8sutil/fake"
 )
 
-func TestTFReplicaSet(t *testing.T) {
+func TestMXReplicaSet(t *testing.T) {
 	clientSet := fake.NewSimpleClientset()
 
-	jobSpec := &spec.TfJob{
-		Spec: spec.TfJobSpec{
+	jobSpec := &spec.MxJob{
+		Spec: spec.MxJobSpec{
 			RuntimeId: "some-runtime",
-			ReplicaSpecs: []*spec.TfReplicaSpec{
+			ReplicaSpecs: []*spec.MxReplicaSpec{
 				{
 					Replicas:      proto.Int32(2),
-					TfPort:        proto.Int32(10),
+					PsRootPort:    proto.Int32(10),
 					Template:      &v1.PodTemplateSpec{},
-					TfReplicaType: spec.PS,
+					MxReplicaType: spec.PS,
 				},
 			},
 		},
@@ -37,16 +37,16 @@ func TestTFReplicaSet(t *testing.T) {
 	stopC := make(chan struct{})
 
 	wg := &sync.WaitGroup{}
-	job, err := initJob(clientSet, &tfJobFake.TfJobClientFake{}, jobSpec, stopC, wg)
+	job, err := initJob(clientSet, &mxJobFake.MxJobClientFake{}, jobSpec, stopC, wg)
 
 	if err != nil {
 		t.Fatalf("initJob failed: %v", err)
 	}
 
-	replica, err := NewTFReplicaSet(clientSet, *jobSpec.Spec.ReplicaSpecs[0], job)
+	replica, err := NewMXReplicaSet(clientSet, *jobSpec.Spec.ReplicaSpecs[0], job)
 
 	if err != nil {
-		t.Fatalf("NewTFReplicaSet failed: %v", err)
+		t.Fatalf("NewMXReplicaSet failed: %v", err)
 	}
 
 	if err := replica.Create(); err != nil {
@@ -113,7 +113,7 @@ func TestTFReplicaSet(t *testing.T) {
 	}
 }
 
-func TestTFReplicaSetStatusFromPodList(t *testing.T) {
+func TestMXReplicaSetStatusFromPodList(t *testing.T) {
 	type TestCase struct {
 		PodList  v1.PodList
 		Name     string

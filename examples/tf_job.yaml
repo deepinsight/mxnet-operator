@@ -1,11 +1,11 @@
 apiVersion: "mlkube.io/v1beta1"
-kind: "TfJob"
+kind: "MxJob"
 metadata:
   name: "example-job"
 spec:
   replicaSpecs:
     - replicas: 1
-      tfReplicaType: MASTER
+      mxReplicaType: MASTER
       template:
         spec:
           containers:
@@ -13,7 +13,7 @@ spec:
               name: tensorflow
           restartPolicy: OnFailure
     - replicas: 1
-      tfReplicaType: WORKER
+      mxReplicaType: WORKER
       template:
         spec:
           containers:

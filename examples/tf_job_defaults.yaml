@@ -1,7 +1,7 @@
-# This template is used to verify that REPLICAS, TfPort, and TfReplicaType are properly set to default
+# This template is used to verify that REPLICAS, TfPort, and MxReplicaType are properly set to default
 # values if unspecified by the user.
 apiVersion: "mlkube.io/v1beta1"
-kind: "TfJob"
+kind: "MxJob"
 metadata:
   name: "example-job-defaults"
 spec:

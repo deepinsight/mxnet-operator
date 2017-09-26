@@ -1,6 +1,6 @@
-package: github.com/deepinsight/mlkube.io
+package: github.com/deepinsight/mxnet-operator
 ignore:
-- github.com/deepinsight/mlkube.io
+- github.com/deepinsight/mxnet-operator
 import:
 - package: k8s.io/client-go
   version: v4.0.0-beta.0

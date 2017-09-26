@@ -1,12 +1,12 @@
 apiVersion: "mlkube.io/v1beta1"
-kind: "TfJob"
+kind: "MxJob"
 metadata:
   name: {{ .Release.Name }}
 spec:
   replica_specs:
     - replicas: 1
       tfPort: 2222
-      tfReplicaType: MASTER
+      mxReplicaType: MASTER
       template:
         spec:
           containers:
@@ -15,7 +15,7 @@ spec:
           restartPolicy: OnFailure
     - replicas: 1
       tfPort: 2222
-      tfReplicaType: WORKER
+      mxReplicaType: WORKER
       template:
         spec:
           containers:

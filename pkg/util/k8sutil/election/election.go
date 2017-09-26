@@ -58,8 +58,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	rl "github.com/deepinsight/mxnet-operator/pkg/util/k8sutil/election/resourcelock"
 	"github.com/golang/glog"
-	rl "github.com/deepinsight/mlkube.io/pkg/util/k8sutil/election/resourcelock"
 )
 
 const (

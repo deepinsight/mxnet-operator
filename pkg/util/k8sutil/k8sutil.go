@@ -4,11 +4,11 @@ import (
 	"net"
 	"os"
 
-	"github.com/deepinsight/mlkube.io/pkg/spec"
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
 
+	log "github.com/golang/glog"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	log "github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -22,7 +22,7 @@ const (
 )
 
 // TODO(jlewi): I think this function is used to add an owner to a resource. I think we we should use this
-// method to ensure all resources created for the TfJob are owned by the TfJob.
+// method to ensure all resources created for the MxJob are owned by the MxJob.
 func addOwnerRefToObject(o metav1.Object, r metav1.OwnerReference) {
 	o.SetOwnerReferences(append(o.GetOwnerReferences(), r))
 }
@@ -83,8 +83,8 @@ func JobListOpt(clusterName string) metav1.ListOptions {
 
 func LabelsForJob(jobName string) map[string]string {
 	return map[string]string{
-		// TODO(jlewi): Need to set appropriate labels for TF.
-		"tf_job": jobName,
+		// TODO(jlewi): Need to set appropriate labels for MXNet.
+		"mx_job": jobName,
 		"app":    spec.AppLabel,
 	}
 }

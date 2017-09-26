@@ -86,7 +86,7 @@ def main():
   logging.info("Tensorflow version: %s", tf.__version__)
   logging.info("Tensorflow git version: %s", tf.__git_version__)
 
-  tf_config_json = os.environ.get("TF_CONFIG", "{}")
+  tf_config_json = os.environ.get("MX_CONFIG", "{}")
   tf_config = json.loads(tf_config_json)
   logging.info("tf_config: %s", tf_config)
 

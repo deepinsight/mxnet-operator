@@ -6,24 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"k8s.io/client-go/kubernetes"
-	"github.com/deepinsight/mlkube.io/pkg/spec"
-	"github.com/deepinsight/mlkube.io/pkg/trainer"
-	"github.com/deepinsight/mlkube.io/pkg/util/k8sutil"
 	"net/http"
 	"reflect"
 	"sync"
 	"time"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
+	"github.com/deepinsight/mxnet-operator/pkg/trainer"
+	"github.com/deepinsight/mxnet-operator/pkg/util/k8sutil"
+	"k8s.io/client-go/kubernetes"
+
+	"github.com/deepinsight/mxnet-operator/pkg/util"
 	log "github.com/golang/glog"
+	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kwatch "k8s.io/apimachinery/pkg/watch"
 	k8sErrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"github.com/deepinsight/mlkube.io/pkg/util"
+	kwatch "k8s.io/apimachinery/pkg/watch"
 )
 
 var (
@@ -39,14 +40,14 @@ var (
 
 type Event struct {
 	Type   kwatch.EventType
-	Object *spec.TfJob
+	Object *spec.MxJob
 }
 
 type Controller struct {
 	Namespace   string
 	KubeCli     kubernetes.Interface
 	ApiCli      apiextensionsclient.Interface
-	TfJobClient k8sutil.TfJobClient
+	MxJobClient k8sutil.MxJobClient
 
 	config spec.ControllerConfig
 	jobs   map[string]*trainer.TrainingJob
@@ -59,15 +60,15 @@ type Controller struct {
 	waitJobs sync.WaitGroup
 }
 
-func New(kubeCli kubernetes.Interface, apiCli apiextensionsclient.Interface, tfJobClient k8sutil.TfJobClient, ns string, config spec.ControllerConfig) *Controller {
-	if tfJobClient == nil {
-		panic("tfJobClient can't be nil")
+func New(kubeCli kubernetes.Interface, apiCli apiextensionsclient.Interface, mxJobClient k8sutil.MxJobClient, ns string, config spec.ControllerConfig) *Controller {
+	if mxJobClient == nil {
+		panic("mxJobClient can't be nil")
 	}
 	return &Controller{
 		Namespace:   ns,
 		KubeCli:     kubeCli,
-		ApiCli:  		apiCli,
-		TfJobClient: tfJobClient,
+		ApiCli:      apiCli,
+		MxJobClient: mxJobClient,
 		// TODO(jlewi)): What to do about cluster.Cluster?
 		jobs:      make(map[string]*trainer.TrainingJob),
 		jobRVs:    make(map[string]string),
@@ -105,11 +106,11 @@ func (c *Controller) Run() error {
 	eventCh, errCh := c.watch(watchVersion)
 
 	go func() {
-		pt := newPanicTimer(time.Minute, "unexpected long blocking (> 1 Minute) when handling TfJob event")
+		pt := newPanicTimer(time.Minute, "unexpected long blocking (> 1 Minute) when handling MxJob event")
 
 		for ev := range eventCh {
 			pt.start()
-			if err := c.handleTfJobEvent(ev); err != nil {
+			if err := c.handleMxJobEvent(ev); err != nil {
 				log.Warningf("fail to handle event: %v, error %v", util.Pformat(ev), err)
 			}
 			pt.stop()
@@ -118,82 +119,82 @@ func (c *Controller) Run() error {
 	return <-errCh
 }
 
-func (c *Controller) handleTfJobEvent(event *Event) error {
-	tfjob := event.Object
+func (c *Controller) handleMxJobEvent(event *Event) error {
+	mxjob := event.Object
 
-	if tfjob.Status.IsFailed() {
+	if mxjob.Status.IsFailed() {
 		if event.Type == kwatch.Deleted {
-			delete(c.jobs, tfjob.Key())
-			delete(c.jobRVs, tfjob.Key())
+			delete(c.jobs, mxjob.Key())
+			delete(c.jobRVs, mxjob.Key())
 			return nil
 		}
-		return fmt.Errorf("ignore failed TfJob (%s). Please delete its CRD", tfjob.Metadata.Name)
+		return fmt.Errorf("ignore failed MxJob (%s). Please delete its CRD", mxjob.Metadata.Name)
 	}
 
 	// TODO: add validation to spec update.
-	tfjob.Spec.Cleanup()
+	mxjob.Spec.Cleanup()
 	//
 	switch event.Type {
 	case kwatch.Added:
 		// Event indicates that a new instance of the Cluster CRD was created.
 		// So we create a Cluster object to control this resource.
 		stopC := make(chan struct{})
-		trainingJob, err := trainer.NewJob(c.KubeCli, c.TfJobClient, tfjob, stopC, &c.waitJobs, &c.config)
+		trainingJob, err := trainer.NewJob(c.KubeCli, c.MxJobClient, mxjob, stopC, &c.waitJobs, &c.config)
 		if err != nil {
 			return err
 		}
 
-		c.stopChMap[tfjob.Key()] = stopC
-		c.jobs[tfjob.Key()] = trainingJob
-		c.jobRVs[tfjob.Key()] = tfjob.Metadata.ResourceVersion
+		c.stopChMap[mxjob.Key()] = stopC
+		c.jobs[mxjob.Key()] = trainingJob
+		c.jobRVs[mxjob.Key()] = mxjob.Metadata.ResourceVersion
 
 	//case kwatch.Modified:
-	//  if _, ok := c.jobs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name]; !ok {
+	//  if _, ok := c.jobs[mxjob.Metadata.Namespace + "-" + mxjob.Metadata.Name]; !ok {
 	//    return fmt.Errorf("unsafe state. Cluster was never created but we received event (%s)", event.Type)
 	//  }
-	//  c.jobs[tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name].Update(tfjob)
-	//  c.jobRVs[tfjob.Metadata.Name] = tfjob.Metadata.ResourceVersion
+	//  c.jobs[mxjob.Metadata.Namespace + "-" + mxjob.Metadata.Name].Update(mxjob)
+	//  c.jobRVs[mxjob.Metadata.Name] = mxjob.Metadata.ResourceVersion
 	//
 	case kwatch.Deleted:
-		if _, ok := c.jobs[tfjob.Key()]; !ok {
-			return fmt.Errorf("unsafe state. TfJob was never created but we received event (%s)", event.Type)
+		if _, ok := c.jobs[mxjob.Key()]; !ok {
+			return fmt.Errorf("unsafe state. MxJob was never created but we received event (%s)", event.Type)
 		}
-		c.jobs[tfjob.Key()].Delete()
-		delete(c.jobs, tfjob.Key())
-		delete(c.jobRVs, tfjob.Key())
+		c.jobs[mxjob.Key()].Delete()
+		delete(c.jobs, mxjob.Key())
+		delete(c.jobRVs, mxjob.Key())
 	}
 	return nil
 }
 
-func (c *Controller) findAllTfJobs() (string, error) {
+func (c *Controller) findAllMxJobs() (string, error) {
 	// TODO(jlewi): Need to implement this function.
 	// TODO: Need to find for all namespaces
 	log.Info("finding existing jobs...")
-	jobList, err := c.TfJobClient.List(c.Namespace)
+	jobList, err := c.MxJobClient.List(c.Namespace)
 	if err != nil {
 		return "", err
 	}
 
 	for i := range jobList.Items {
-		tfjob := jobList.Items[i]
+		mxjob := jobList.Items[i]
 
-		if tfjob.Status.IsFailed() {
-			log.Infof("ignore failed TfJob (%s). Please delete its CRD", tfjob.Metadata.Name)
+		if mxjob.Status.IsFailed() {
+			log.Infof("ignore failed MxJob (%s). Please delete its CRD", mxjob.Metadata.Name)
 			continue
 		}
 
-		tfjob.Spec.Cleanup()
+		mxjob.Spec.Cleanup()
 
 		stopC := make(chan struct{})
-		nc, err := trainer.NewJob(c.KubeCli, c.TfJobClient, &tfjob, stopC, &c.waitJobs, &c.config)
+		nc, err := trainer.NewJob(c.KubeCli, c.MxJobClient, &mxjob, stopC, &c.waitJobs, &c.config)
 
 		if err != nil {
-			log.Errorf("traininer.NewJob() returned error; %v for job: %v", err, tfjob.Metadata.Name)
+			log.Errorf("traininer.NewJob() returned error; %v for job: %v", err, mxjob.Metadata.Name)
 			continue
 		}
-		c.stopChMap[tfjob.Key()] = stopC
-		c.jobs[tfjob.Key()] = nc
-		c.jobRVs[tfjob.Key()] = tfjob.Metadata.ResourceVersion
+		c.stopChMap[mxjob.Key()] = stopC
+		c.jobs[mxjob.Key()] = nc
+		c.jobRVs[mxjob.Key()] = mxjob.Metadata.ResourceVersion
 	}
 
 	return jobList.Metadata.ResourceVersion, nil
@@ -215,9 +216,9 @@ func (c *Controller) initResource() (string, error) {
 	if err != nil {
 		if k8sutil.IsKubernetesResourceAlreadyExistError(err) {
 			// CRD has been initialized before. We need to recover existing cluster.
-			watchVersion, err = c.findAllTfJobs()
+			watchVersion, err = c.findAllMxJobs()
 			if err != nil {
-				log.Errorf("initResource() failed; findAllTfJobs returned error: %v", err)
+				log.Errorf("initResource() failed; findAllMxJobs returned error: %v", err)
 				return "", err
 			}
 		} else {
@@ -234,16 +235,16 @@ func (c *Controller) createCRD() error {
 			Name: spec.CRDName(),
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
-			Group: spec.CRDGroup,
+			Group:   spec.CRDGroup,
 			Version: spec.CRDVersion,
-			 Scope: v1beta1.NamespaceScoped,
-				Names: v1beta1.CustomResourceDefinitionNames{
-					Plural: spec.CRDKindPlural,
-					// TODO(jlewi): Do we want to set the singular name?
-					// Kind is the serialized kind of the resource.  It is normally CamelCase and singular.
-					Kind:   reflect.TypeOf(spec.TfJob{}).Name(),
-				},
+			Scope:   v1beta1.NamespaceScoped,
+			Names: v1beta1.CustomResourceDefinitionNames{
+				Plural: spec.CRDKindPlural,
+				// TODO(jlewi): Do we want to set the singular name?
+				// Kind is the serialized kind of the resource.  It is normally CamelCase and singular.
+				Kind: reflect.TypeOf(spec.MxJob{}).Name(),
 			},
+		},
 	}
 
 	_, err := c.ApiCli.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
@@ -282,7 +283,7 @@ func (c *Controller) createCRD() error {
 	return nil
 }
 
-// watch creates a go routine, and watches the TF cluster kind resources from
+// watch creates a go routine, and watches the MX cluster kind resources from
 // the given watch version. It emits events on the resources through the returned
 // event chan. Errors will be reported through the returned error chan. The go routine
 // exits on any error.
@@ -294,7 +295,7 @@ func (c *Controller) watch(watchVersion string) (<-chan *Event, <-chan error) {
 	go func() {
 		defer close(eventCh)
 		for {
-			resp, err := c.TfJobClient.Watch(MasterHost, c.Namespace, KubeHttpCli, watchVersion)
+			resp, err := c.MxJobClient.Watch(MasterHost, c.Namespace, KubeHttpCli, watchVersion)
 			if err != nil {
 				errCh <- err
 				return
@@ -328,7 +329,7 @@ func (c *Controller) watch(watchVersion string) (<-chan *Event, <-chan error) {
 					if st.Code == http.StatusGone {
 						// event history is outdated.
 						// if nothing has changed, we can go back to watch again.
-						jobList, err := c.TfJobClient.List(c.Namespace)
+						jobList, err := c.MxJobClient.List(c.Namespace)
 						if err == nil && !c.isClustersCacheStale(jobList.Items) {
 							watchVersion = jobList.Metadata.ResourceVersion
 							break
@@ -344,7 +345,7 @@ func (c *Controller) watch(watchVersion string) (<-chan *Event, <-chan error) {
 				}
 
 				log.Infof("event: %v %v", ev.Type, util.Pformat((ev.Object.Spec)))
-				log.Infof("TfJob event: %v %v", ev.Type, util.Pformat(ev.Object.Spec))
+				log.Infof("MxJob event: %v %v", ev.Type, util.Pformat(ev.Object.Spec))
 
 				watchVersion = ev.Object.Metadata.ResourceVersion
 				eventCh <- ev
@@ -357,7 +358,7 @@ func (c *Controller) watch(watchVersion string) (<-chan *Event, <-chan error) {
 	return eventCh, errCh
 }
 
-func (c *Controller) isClustersCacheStale(currentClusters []spec.TfJob) bool {
+func (c *Controller) isClustersCacheStale(currentClusters []spec.MxJob) bool {
 	if len(c.jobRVs) != len(currentClusters) {
 		return true
 	}

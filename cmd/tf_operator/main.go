@@ -10,22 +10,22 @@ import (
 
 	"github.com/ghodss/yaml"
 
-	"github.com/deepinsight/mlkube.io/pkg/controller"
-	"github.com/deepinsight/mlkube.io/pkg/garbagecollection"
-	"github.com/deepinsight/mlkube.io/pkg/util"
-	"github.com/deepinsight/mlkube.io/pkg/util/k8sutil"
-	"github.com/deepinsight/mlkube.io/pkg/util/k8sutil/election"
-	"github.com/deepinsight/mlkube.io/pkg/util/k8sutil/election/resourcelock"
-	"github.com/deepinsight/mlkube.io/version"
+	"github.com/deepinsight/mxnet-operator/pkg/controller"
+	"github.com/deepinsight/mxnet-operator/pkg/garbagecollection"
+	"github.com/deepinsight/mxnet-operator/pkg/util"
+	"github.com/deepinsight/mxnet-operator/pkg/util/k8sutil"
+	"github.com/deepinsight/mxnet-operator/pkg/util/k8sutil/election"
+	"github.com/deepinsight/mxnet-operator/pkg/util/k8sutil/election/resourcelock"
+	"github.com/deepinsight/mxnet-operator/version"
 
 	log "github.com/golang/glog"
 
 	"io/ioutil"
 
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/record"
-	"github.com/deepinsight/mlkube.io/pkg/spec"
 )
 
 var (
@@ -43,12 +43,12 @@ var (
 	leaseDuration    = 15 * time.Second
 	renewDuration    = 5 * time.Second
 	retryPeriod      = 3 * time.Second
-	tfJobClient      *k8sutil.TfJobRestClient
+	mxJobClient      *k8sutil.MxJobRestClient
 )
 
 func init() {
 	// chaos level will be removed once we have a formal tool to inject failures.
-	flag.IntVar(&chaosLevel, "chaos-level", -1, "DO NOT USE IN PRODUCTION - level of chaos injected into the TfJob created by the operator.")
+	flag.IntVar(&chaosLevel, "chaos-level", -1, "DO NOT USE IN PRODUCTION - level of chaos injected into the MxJob created by the operator.")
 	flag.BoolVar(&printVersion, "version", false, "Show version and quit")
 	flag.DurationVar(&gcInterval, "gc-interval", 10*time.Minute, "GC interval")
 	flag.StringVar(&controllerConfigFile, "controller_config_file", "", "Path to file containing the controller config.")
@@ -61,11 +61,11 @@ func init() {
 		panic(err)
 	}
 	controller.MasterHost = restCfg.Host
-	tfJobClient, err = k8sutil.NewTfJobClient()
+	mxJobClient, err = k8sutil.NewMxJobClient()
 	if err != nil {
 		panic(err)
 	}
-	controller.KubeHttpCli = tfJobClient.Client()
+	controller.KubeHttpCli = mxJobClient.Client()
 
 	if controllerConfigFile != "" {
 		log.Infof("Loading controller config from %v.", controllerConfigFile)
@@ -154,14 +154,14 @@ func main() {
 func run(stop <-chan struct{}) {
 	kubeCli := k8sutil.MustNewKubeClient()
 
-	go periodicFullGC(kubeCli, tfJobClient, namespace, gcInterval)
+	go periodicFullGC(kubeCli, mxJobClient, namespace, gcInterval)
 
 	// TODO(jlewi): Should we start chaos?
 	// startChaos(context.Background(), cfg.KubeCli, cfg.Namespace, chaosLevel)
 	apiCli := k8sutil.MustNewApiExtensionsClient()
 
 	for {
-		c := controller.New(kubeCli, apiCli, tfJobClient, namespace, controllerConfig)
+		c := controller.New(kubeCli, apiCli, mxJobClient, namespace, controllerConfig)
 		err := c.Run()
 		switch err {
 		case controller.ErrVersionOutdated:
@@ -171,8 +171,8 @@ func run(stop <-chan struct{}) {
 	}
 }
 
-func periodicFullGC(kubecli kubernetes.Interface, tfJobClient k8sutil.TfJobClient, ns string, d time.Duration) {
-	gc := garbagecollection.New(kubecli, tfJobClient, ns)
+func periodicFullGC(kubecli kubernetes.Interface, mxJobClient k8sutil.MxJobClient, ns string, d time.Duration) {
+	gc := garbagecollection.New(kubecli, mxJobClient, ns)
 	timer := time.NewTimer(d)
 	defer timer.Stop()
 	for {

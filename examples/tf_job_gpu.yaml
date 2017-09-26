@@ -1,10 +1,10 @@
 apiVersion: "mlkube.io/v1beta1"
-kind: "TfJob"
+kind: "MxJob"
 metadata:
   name: "tf-smoke-gpu"
 spec:
   replicaSpecs:
-    - tfReplicaType: MASTER
+    - mxReplicaType: MASTER
       template:
         spec:
           containers:

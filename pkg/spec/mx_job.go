@@ -6,40 +6,40 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/deepinsight/mxnet-operator/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
-	"github.com/deepinsight/mlkube.io/pkg/util"
 	//"github.com/golang/protobuf/proto"
 	"github.com/gogo/protobuf/proto"
 )
 
 const (
-	CRDKind  = "TfJob"
-	CRDKindPlural  = "tfjobs"
-	CRDGroup       = "mlkube.io"
-	CRDVersion     = "v1beta1"
-	CRDApiVersion  = CRDGroup + "/" + CRDVersion    // "mlkube.io/v1beta1"
+	CRDKind       = "MxJob"
+	CRDKindPlural = "mxjobs"
+	CRDGroup      = "mlkube.io"
+	CRDVersion    = "v1beta1"
+	CRDApiVersion = CRDGroup + "/" + CRDVersion // "mlkube.io/v1beta1"
 
 	// Value of the APP label that gets applied to a lot of entities.
-	AppLabel = "tensorflow-job"
+	AppLabel = "mxnet-job"
 
 	// Defaults for the Spec
-	TfPort = 2222
-	Replicas = 1
+	PS_ROOT_PORT = 9091
+	Replicas     = 1
 )
 
 func CRDName() string {
 	return fmt.Sprintf("%s.%s", CRDKindPlural, CRDGroup)
 }
 
-type TfJob struct {
+type MxJob struct {
 	metav1.TypeMeta `json:",inline"`
 	Metadata        metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec            TfJobSpec         `json:"spec"`
-	Status          TfJobStatus       `json:"status"`
+	Spec            MxJobSpec         `json:"spec"`
+	Status          MxJobStatus       `json:"status"`
 }
 
-func (c *TfJob) AsOwner() metav1.OwnerReference {
+func (c *MxJob) AsOwner() metav1.OwnerReference {
 	trueVar := true
 	// TODO: In 1.6 this is gonna be "k8s.io/kubernetes/pkg/apis/meta/v1"
 	// Both api.OwnerReference and metatypes.OwnerReference are combined into that.
@@ -52,116 +52,105 @@ func (c *TfJob) AsOwner() metav1.OwnerReference {
 	}
 }
 
-// Key() is an unique key for TfJob to store in maps
-func (tfjob *TfJob) Key() string{
-	return tfjob.Metadata.Namespace + "-" + tfjob.Metadata.Name
+// Key() is an unique key for MxJob to store in maps
+func (j *MxJob) Key() string {
+	return j.Metadata.Namespace + "-" + j.Metadata.Name
 }
 
-// TODO(jlewi): Need to define the actual configuration for the TensorFlow TfJob.
-type TfJobSpec struct {
+// TODO(jlewi): Need to define the actual configuration for the MXNet MxJob.
+type MxJobSpec struct {
 	// TODO(jlewi): Can we we get rid of this and use some value from Kubernetes or a random ide.
 	RuntimeId string
 
-	//TensorBoardSpec specifies the configuration to start a TensorBoard deployment
-	TensorBoard *TensorBoardSpec `json:"tensorboard"`
-
-	// ReplicaSpecs specifies the TF replicas to run.
-	ReplicaSpecs []*TfReplicaSpec `json:"replicaSpecs"`
+	// ReplicaSpecs specifies the Mx replicas to run.
+	ReplicaSpecs []*MxReplicaSpec `json:"replicaSpecs"`
 }
 
-// TfReplicaType determines how a set of TF processes are handled.
-type TfReplicaType string
+// MxReplicaType determines how a set of Mx processes are handled.
+type MxReplicaType string
 
 const (
-	MASTER TfReplicaType = "MASTER"
-	PS     TfReplicaType = "PS"
-	WORKER TfReplicaType = "WORKER"
+	SCHEDULER MxReplicaType = "SCHEDULER"
+	SERVER    MxReplicaType = "SERVER"
+	WORKER    MxReplicaType = "WORKER"
 )
 
 // ContainerName is an enum for expected containers.
 type ContainerName string
 
 const (
-	TENSORFLOW ContainerName = "tensorflow"
+	MXNET ContainerName = "mxnet"
 )
 
 // TODO(jlewi): We probably want to add a name field. This would allow us to have more than 1 type of each worker.
 // This might be useful if you wanted to have a separate set of workers to do eval.
-type TfReplicaSpec struct {
+type MxReplicaSpec struct {
 	// Replicas is the number of desired replicas.
 	// This is a pointer to distinguish between explicit zero and unspecified.
 	// Defaults to 1.
 	// More info: http://kubernetes.io/docs/user-guide/replication-controller#what-is-a-replication-controller
 	// +optional
-	Replicas      *int32          `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"`
+	Replicas *int32              `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"`
 	Template *v1.PodTemplateSpec `json:"template,omitempty" protobuf:"bytes,3,opt,name=template"`
-	// TfPort is the port to use for TF services.
-	TfPort        *int32 `json:"tfPort,omitempty" protobuf:"varint,1,opt,name=tfPort"`
-	TfReplicaType `json:"tfReplicaType"`
+	// Root_PS_Port is the port to use for scheduler.
+	PsRootPort    *int32 `json:"PsRootPort,omitempty" protobuf:"varint,1,opt,name=PsRootPort"`
+	MxReplicaType `json:"MxReplicaType"`
 }
 
-type TensorBoardSpec struct {
-	//Location of TensorFlow event files
-	Image        string           `json:"image"`
-	LogDir       string           `json:"logDir"`
-	Volumes      []v1.Volume      `json:"volumes"`
-	VolumeMounts []v1.VolumeMount `json:"volumeMounts"`
-	ServiceType  v1.ServiceType   `json:"serviceType"`
-}
-
-// Validate checks that the TfJobSpec is valid.
-func (c *TfJobSpec) Validate() error {
-	// Check that each replica has a TensorFlow container.
+// Validate checks that the MxJobSpec is valid.
+func (c *MxJobSpec) Validate() error {
+	// Check that each replica has a MXNet container.
 	for _, r := range c.ReplicaSpecs {
 		found := false
 		if r.Template == nil {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
 
-		if r.TfReplicaType == MASTER && *r.Replicas != 1 {
-			return errors.New("The MASTER must have Replicas = 1")
-		}
-
-		if r.TfPort == nil {
-			return errors.New("tfReplicaSpec.TfPort can't be nil.")
+		if r.MxReplicaType == WORKER && *r.Replicas > 1 {
+			if r.MxReplicaType == SCHEDULER && *r.Replicas != 1 {
+				return errors.New("For distributed training, the SCHEDULER must have Replicas = 1")
+			}
+			if r.PsRootPort == nil {
+				return errors.New("For distributed training, MxReplicaSpec.PsRootPort can't be nil.")
+			}
 		}
 
 		// Make sure the replica type is valid.
-		validReplicaTypes := []TfReplicaType{MASTER, PS, WORKER}
+		validReplicaTypes := []MxReplicaType{SCHEDULER, SERVER, WORKER}
 
 		isValidReplicaType := false
 		for _, t := range validReplicaTypes {
-			if t == r.TfReplicaType {
+			if t == r.MxReplicaType {
 				isValidReplicaType = true
 				break
 			}
 		}
 
 		if !isValidReplicaType {
-			return fmt.Errorf("tfReplicaSpec.TfReplicaType is %v but must be one of %v", r.TfReplicaType, validReplicaTypes)
+			return fmt.Errorf("MxReplicaSpec.MxReplicaType is %v but must be one of %v", r.MxReplicaType, validReplicaTypes)
 		}
 
 		for _, c := range r.Template.Spec.Containers {
-			if c.Name == string(TENSORFLOW) {
+			if c.Name == string(MXNET) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			return fmt.Errorf("Replica type %v is missing a container named %v", r.TfReplicaType, TENSORFLOW)
+			return fmt.Errorf("Replica type %v is missing a container named %v", r.MxReplicaType, MXNET)
 		}
 	}
 	return nil
 }
 
 // ConfigureAccelerators adds any accelerator specific configuration to the pods.
-func (c *TfJobSpec) ConfigureAccelerators(accelerators map[string]AcceleratorConfig) error {
+func (c *MxJobSpec) ConfigureAccelerators(accelerators map[string]AcceleratorConfig) error {
 	for _, r := range c.ReplicaSpecs {
 		if r.Template == nil {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
 		for i, c := range r.Template.Spec.Containers {
-			if c.Name == string(TENSORFLOW) {
+			if c.Name == string(MXNET) {
 				// Identify the accelerators attached to this container.
 				a := map[string]AcceleratorConfig{}
 
@@ -212,8 +201,8 @@ func (c *TfJobSpec) ConfigureAccelerators(accelerators map[string]AcceleratorCon
 }
 
 // SetDefaults sets any unspecified values to defaults
-func (c *TfJobSpec) SetDefaults() error {
-	// Check that each replica has a TensorFlow container.
+func (c *MxJobSpec) SetDefaults() error {
+	// Check that each replica has a MXNet container.
 	for _, r := range c.ReplicaSpecs {
 		if r == nil {
 			return fmt.Errorf("ReplicaSpecs contain nil")
@@ -223,12 +212,12 @@ func (c *TfJobSpec) SetDefaults() error {
 			return fmt.Errorf("Replica is missing Template; %v", util.Pformat(r))
 		}
 
-		if r.TfPort == nil {
-			r.TfPort = proto.Int32(TfPort)
+		if r.PsRootPort == nil {
+			r.PsRootPort = proto.Int32(PS_ROOT_PORT)
 		}
 
-		if string(r.TfReplicaType) == "" {
-			r.TfReplicaType = MASTER
+		if string(r.MxReplicaType) == "" {
+			r.MxReplicaType = WORKER
 		}
 
 		if r.Replicas == nil {
@@ -240,44 +229,44 @@ func (c *TfJobSpec) SetDefaults() error {
 
 // Cleanup cleans up user passed spec, e.g. defaulting, transforming fields.
 // TODO: move this to admission controller
-func (c *TfJobSpec) Cleanup() {
+func (c *MxJobSpec) Cleanup() {
 	// TODO(jlewi): Add logic to cleanup user provided spec; e.g. by filling in defaults.
 	// We should have default container images so user doesn't have to provide these.
 }
 
-type TfJobPhase string
+type MxJobPhase string
 
 const (
-	TfJobPhaseNone     TfJobPhase = ""
-	TfJobPhaseCreating            = "Creating"
-	TfJobPhaseRunning             = "Running"
-	TfJobPhaseCleanUp             = "CleanUp"
-	TfJobPhaseFailed              = "Failed"
-	TfJobPhaseDone                = "Done"
+	MxJobPhaseNone     MxJobPhase = ""
+	MxJobPhaseCreating            = "Creating"
+	MxJobPhaseRunning             = "Running"
+	MxJobPhaseCleanUp             = "CleanUp"
+	MxJobPhaseFailed              = "Failed"
+	MxJobPhaseDone                = "Done"
 )
 
-type TfJobCondition struct {
-	Type TfJobConditionType `json:"type"`
+type MxJobCondition struct {
+	Type MxJobConditionType `json:"type"`
 
 	Reason string `json:"reason"`
 
 	TransitionTime string `json:"transitionTime"`
 }
 
-type TfJobConditionType string
+type MxJobConditionType string
 
 // TODO(jlewi): Need to define appropriate conditions and get rid of the ones we don't need.
 const (
-	TfJobConditionReady = "Ready"
+	MxJobConditionReady = "Ready"
 
-	TfJobConditionRemovingDeadMember = "RemovingDeadMember"
+	MxJobConditionRemovingDeadMember = "RemovingDeadMember"
 
-	TfJobConditionRecovering = "Recovering"
+	MxJobConditionRecovering = "Recovering"
 
-	TfJobConditionScalingUp   = "ScalingUp"
-	TfJobConditionScalingDown = "ScalingDown"
+	MxJobConditionScalingUp   = "ScalingUp"
+	MxJobConditionScalingDown = "ScalingDown"
 
-	TfJobConditionUpgrading = "Upgrading"
+	MxJobConditionUpgrading = "Upgrading"
 )
 
 type State string
@@ -289,9 +278,9 @@ const (
 	StateFailed    State = "Failed"
 )
 
-type TfJobStatus struct {
-	// Phase is the TfJob running phase
-	Phase  TfJobPhase `json:"phase"`
+type MxJobStatus struct {
+	// Phase is the MxJob running phase
+	Phase  MxJobPhase `json:"phase"`
 	Reason string     `json:"reason"`
 
 	// ControlPuased indicates the operator pauses the control of the cluster.
@@ -299,13 +288,13 @@ type TfJobStatus struct {
 	ControlPaused bool `json:"controlPaused"`
 
 	// Condition keeps ten most recent cluster conditions
-	Conditions []TfJobCondition `json:"conditions"`
+	Conditions []MxJobCondition `json:"conditions"`
 
 	// State indicates the state of the job.
 	State State `json:"state"`
 
-	// ReplicaStatuses specifies the status of each TF replica.
-	ReplicaStatuses []*TfReplicaStatus `json:"replicaStatuses"`
+	// ReplicaStatuses specifies the status of each Mx replica.
+	ReplicaStatuses []*MxReplicaStatus `json:"replicaStatuses"`
 }
 
 type ReplicaState string
@@ -318,8 +307,8 @@ const (
 	ReplicaStateSucceeded              = "Succeeded"
 )
 
-type TfReplicaStatus struct {
-	TfReplicaType `json:"tf_replica_type"`
+type MxReplicaStatus struct {
+	MxReplicaType `json:"Mx_replica_type"`
 	// State is the overall state of the replica
 	State ReplicaState `json:"state"`
 
@@ -327,8 +316,8 @@ type TfReplicaStatus struct {
 	ReplicasStates map[ReplicaState]int
 }
 
-func (cs TfJobStatus) Copy() TfJobStatus {
-	newCS := TfJobStatus{}
+func (cs MxJobStatus) Copy() MxJobStatus {
+	newCS := MxJobStatus{}
 	b, err := json.Marshal(cs)
 	if err != nil {
 		panic(err)
@@ -340,76 +329,76 @@ func (cs TfJobStatus) Copy() TfJobStatus {
 	return newCS
 }
 
-func (cs *TfJobStatus) IsFailed() bool {
+func (cs *MxJobStatus) IsFailed() bool {
 	if cs == nil {
 		return false
 	}
 	return cs.State == StateFailed
 }
 
-func (cs *TfJobStatus) SetPhase(p TfJobPhase) {
+func (cs *MxJobStatus) SetPhase(p MxJobPhase) {
 	cs.Phase = p
 }
 
-func (cs *TfJobStatus) PauseControl() {
+func (cs *MxJobStatus) PauseControl() {
 	cs.ControlPaused = true
 }
 
-func (cs *TfJobStatus) Control() {
+func (cs *MxJobStatus) Control() {
 	cs.ControlPaused = false
 }
 
-func (cs *TfJobStatus) SetReason(r string) {
+func (cs *MxJobStatus) SetReason(r string) {
 	cs.Reason = r
 }
 
-func (cs *TfJobStatus) SetState(s State) {
+func (cs *MxJobStatus) SetState(s State) {
 	cs.State = s
 }
 
 // TODO(jlewi): Get rid of the append methods that we don't need
-func (cs *TfJobStatus) AppendScalingDownCondition(from, to int) {
-	c := TfJobCondition{
-		Type:           TfJobConditionScalingDown,
+func (cs *MxJobStatus) AppendScalingDownCondition(from, to int) {
+	c := MxJobCondition{
+		Type:           MxJobConditionScalingDown,
 		Reason:         scalingReason(from, to),
 		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
 
-func (cs *TfJobStatus) AppendRecoveringCondition() {
-	c := TfJobCondition{
-		Type:           TfJobConditionRecovering,
+func (cs *MxJobStatus) AppendRecoveringCondition() {
+	c := MxJobCondition{
+		Type:           MxJobConditionRecovering,
 		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
 
-func (cs *TfJobStatus) AppendUpgradingCondition(to string, member string) {
+func (cs *MxJobStatus) AppendUpgradingCondition(to string, member string) {
 	reason := fmt.Sprintf("upgrading cluster member %s version to %v", member, to)
 
-	c := TfJobCondition{
-		Type:           TfJobConditionUpgrading,
+	c := MxJobCondition{
+		Type:           MxJobConditionUpgrading,
 		Reason:         reason,
 		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
 
-func (cs *TfJobStatus) AppendRemovingDeadMember(name string) {
+func (cs *MxJobStatus) AppendRemovingDeadMember(name string) {
 	reason := fmt.Sprintf("removing dead member %s", name)
 
-	c := TfJobCondition{
-		Type:           TfJobConditionRemovingDeadMember,
+	c := MxJobCondition{
+		Type:           MxJobConditionRemovingDeadMember,
 		Reason:         reason,
 		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
 
-func (cs *TfJobStatus) SetReadyCondition() {
-	c := TfJobCondition{
-		Type:           TfJobConditionReady,
+func (cs *MxJobStatus) SetReadyCondition() {
+	c := MxJobCondition{
+		Type:           MxJobConditionReady,
 		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 
@@ -419,13 +408,13 @@ func (cs *TfJobStatus) SetReadyCondition() {
 	}
 
 	lastc := cs.Conditions[len(cs.Conditions)-1]
-	if lastc.Type == TfJobConditionReady {
+	if lastc.Type == MxJobConditionReady {
 		return
 	}
 	cs.appendCondition(c)
 }
 
-func (cs *TfJobStatus) appendCondition(c TfJobCondition) {
+func (cs *MxJobStatus) appendCondition(c MxJobCondition) {
 	cs.Conditions = append(cs.Conditions, c)
 	if len(cs.Conditions) > 10 {
 		cs.Conditions = cs.Conditions[1:]

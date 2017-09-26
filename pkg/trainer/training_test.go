@@ -4,13 +4,14 @@ import (
 	"reflect"
 	"testing"
 
+	"sync"
+
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
+	mxJobFake "github.com/deepinsight/mxnet-operator/pkg/util/k8sutil/fake"
 	"github.com/gogo/protobuf/proto"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
-	"github.com/deepinsight/mlkube.io/pkg/spec"
-	tfJobFake "github.com/deepinsight/mlkube.io/pkg/util/k8sutil/fake"
-	"sync"
 )
 
 func TestIsRetryableTerminationState(t *testing.T) {
@@ -74,20 +75,20 @@ func TestIsRetryableTerminationState(t *testing.T) {
 
 func TestClusterSpec(t *testing.T) {
 	type TestCase struct {
-		Spec     *spec.TfJob
+		Spec     *spec.MxJob
 		Expected map[string][]string
 	}
 
 	cases := []TestCase{
 		{
-			Spec: &spec.TfJob{
-				Spec: spec.TfJobSpec{
+			Spec: &spec.MxJob{
+				Spec: spec.MxJobSpec{
 					RuntimeId: "runtime",
-					ReplicaSpecs: []*spec.TfReplicaSpec{
+					ReplicaSpecs: []*spec.MxReplicaSpec{
 						{
-							Replicas:      proto.Int32(2),
-							TfPort:        proto.Int32(22),
-							Template:      &v1.PodTemplateSpec{
+							Replicas:   proto.Int32(2),
+							PsRootPort: proto.Int32(22),
+							Template: &v1.PodTemplateSpec{
 								Spec: v1.PodSpec{
 									Containers: []v1.Container{
 										{
@@ -96,12 +97,12 @@ func TestClusterSpec(t *testing.T) {
 									},
 								},
 							},
-							TfReplicaType: spec.PS,
+							MxReplicaType: spec.PS,
 						},
 						{
-							Replicas:      proto.Int32(1),
-							TfPort:        proto.Int32(42),
-							Template:      &v1.PodTemplateSpec{
+							Replicas:   proto.Int32(1),
+							PsRootPort: proto.Int32(42),
+							Template: &v1.PodTemplateSpec{
 								Spec: v1.PodSpec{
 									Containers: []v1.Container{
 										{
@@ -110,12 +111,12 @@ func TestClusterSpec(t *testing.T) {
 									},
 								},
 							},
-							TfReplicaType: spec.MASTER,
+							MxReplicaType: spec.MASTER,
 						},
 						{
-							Replicas:      proto.Int32(3),
-							TfPort:        proto.Int32(40),
-							Template:      &v1.PodTemplateSpec{
+							Replicas:   proto.Int32(3),
+							PsRootPort: proto.Int32(40),
+							Template: &v1.PodTemplateSpec{
 								Spec: v1.PodSpec{
 									Containers: []v1.Container{
 										{
@@ -124,7 +125,7 @@ func TestClusterSpec(t *testing.T) {
 									},
 								},
 							},
-							TfReplicaType: spec.WORKER,
+							MxReplicaType: spec.WORKER,
 						},
 					},
 				},
@@ -145,7 +146,7 @@ func TestClusterSpec(t *testing.T) {
 		stopC := make(chan struct{})
 
 		wg := &sync.WaitGroup{}
-		job, err := initJob(clientSet, &tfJobFake.TfJobClientFake{}, c.Spec, stopC, wg)
+		job, err := initJob(clientSet, &mxJobFake.MxJobClientFake{}, c.Spec, stopC, wg)
 
 		if err != nil {
 			t.Fatalf("initJob failed: %v", err)
@@ -175,18 +176,18 @@ func TestJobSetup(t *testing.T) {
 	clientSet := fake.NewSimpleClientset()
 
 	type testCase struct {
-		jobSpec      *spec.TfJob
+		jobSpec      *spec.MxJob
 		expectMounts int
 	}
 
 	testCases := []testCase{
 		{
-			jobSpec: &spec.TfJob{
-				Spec: spec.TfJobSpec{
-					ReplicaSpecs: []*spec.TfReplicaSpec{
+			jobSpec: &spec.MxJob{
+				Spec: spec.MxJobSpec{
+					ReplicaSpecs: []*spec.MxReplicaSpec{
 						{
-							Replicas: proto.Int32(2),
-							TfPort:   proto.Int32(10),
+							Replicas:   proto.Int32(2),
+							PsRootPort: proto.Int32(10),
 							Template: &v1.PodTemplateSpec{
 								Spec: v1.PodSpec{
 									Containers: []v1.Container{
@@ -196,7 +197,7 @@ func TestJobSetup(t *testing.T) {
 									},
 								},
 							},
-							TfReplicaType: spec.PS,
+							MxReplicaType: spec.PS,
 						},
 					},
 				},
@@ -204,12 +205,12 @@ func TestJobSetup(t *testing.T) {
 			expectMounts: 0,
 		},
 		{
-			jobSpec: &spec.TfJob{
-				Spec: spec.TfJobSpec{
-					ReplicaSpecs: []*spec.TfReplicaSpec{
+			jobSpec: &spec.MxJob{
+				Spec: spec.MxJobSpec{
+					ReplicaSpecs: []*spec.MxReplicaSpec{
 						{
-							Replicas: proto.Int32(2),
-							TfPort:   proto.Int32(10),
+							Replicas:   proto.Int32(2),
+							PsRootPort: proto.Int32(10),
 							Template: &v1.PodTemplateSpec{
 								Spec: v1.PodSpec{
 									Containers: []v1.Container{
@@ -224,7 +225,7 @@ func TestJobSetup(t *testing.T) {
 									},
 								},
 							},
-							TfReplicaType: spec.PS,
+							MxReplicaType: spec.PS,
 						},
 					},
 				},
@@ -250,7 +251,7 @@ func TestJobSetup(t *testing.T) {
 	for _, c := range testCases {
 		stopC := make(chan struct{})
 		wg := &sync.WaitGroup{}
-		job, err := initJob(clientSet, &tfJobFake.TfJobClientFake{}, c.jobSpec, stopC, wg)
+		job, err := initJob(clientSet, &mxJobFake.MxJobClientFake{}, c.jobSpec, stopC, wg)
 
 		err = job.setup(config)
 

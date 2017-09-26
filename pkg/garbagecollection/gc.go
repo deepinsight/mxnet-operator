@@ -13,8 +13,8 @@
 package garbagecollection
 
 import (
-	"github.com/deepinsight/mlkube.io/pkg/spec"
-	"github.com/deepinsight/mlkube.io/pkg/util/k8sutil"
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
+	"github.com/deepinsight/mxnet-operator/pkg/util/k8sutil"
 
 	log "github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,14 +30,14 @@ const (
 
 type GC struct {
 	kubecli     kubernetes.Interface
-	tfJobClient k8sutil.TfJobClient
+	mxJobClient k8sutil.MxJobClient
 	ns          string
 }
 
-func New(kubecli kubernetes.Interface, tfJobClient k8sutil.TfJobClient, ns string) *GC {
+func New(kubecli kubernetes.Interface, mxJobClient k8sutil.MxJobClient, ns string) *GC {
 	return &GC{
 		kubecli:     kubecli,
-		tfJobClient: tfJobClient,
+		mxJobClient: mxJobClient,
 		ns:          ns,
 	}
 }
@@ -51,7 +51,7 @@ func (gc *GC) CollectJob(job string, jobUID types.UID) {
 // FullyCollect collects resources that were created before,
 // but does not belong to any current running clusters.
 func (gc *GC) FullyCollect() error {
-	jobs, err := gc.tfJobClient.List(gc.ns)
+	jobs, err := gc.mxJobClient.List(gc.ns)
 	if err != nil {
 		return err
 	}

@@ -4,32 +4,32 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/deepinsight/mxnet-operator/pkg/util"
 	"github.com/gogo/protobuf/proto"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/pkg/api/v1"
-	"github.com/deepinsight/mlkube.io/pkg/util"
 )
 
 func TestAddAccelertor(t *testing.T) {
 	type testCase struct {
-		in       *TfJobSpec
-		expected *TfJobSpec
+		in       *MxJobSpec
+		expected *MxJobSpec
 		config   map[string]AcceleratorConfig
 	}
 
 	testCases := []testCase{
 		// Case 1 checks that we look at requests.
 		{
-			in: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			in: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
-						Replicas: proto.Int32(2),
-						TfPort:   proto.Int32(10),
+						Replicas:   proto.Int32(2),
+						PsRootPort: proto.Int32(10),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 										Resources: v1.ResourceRequirements{
 											Requests: map[v1.ResourceName]resource.Quantity{
 												"nvidia-gpu": resource.MustParse("1"),
@@ -39,20 +39,20 @@ func TestAddAccelertor(t *testing.T) {
 								},
 							},
 						},
-						TfReplicaType: PS,
+						MxReplicaType: SERVER,
 					},
 				},
 			},
-			expected: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			expected: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
-						Replicas: proto.Int32(2),
-						TfPort:   proto.Int32(10),
+						Replicas:   proto.Int32(2),
+						PsRootPort: proto.Int32(10),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 										Resources: v1.ResourceRequirements{
 											Requests: map[v1.ResourceName]resource.Quantity{
 												"nvidia-gpu": resource.MustParse("1"),
@@ -78,7 +78,7 @@ func TestAddAccelertor(t *testing.T) {
 								},
 							},
 						},
-						TfReplicaType: PS,
+						MxReplicaType: SERVER,
 					},
 				},
 			},
@@ -96,16 +96,16 @@ func TestAddAccelertor(t *testing.T) {
 		},
 		// Case 2 checks that we look at limit.
 		{
-			in: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			in: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
-						Replicas: proto.Int32(2),
-						TfPort:   proto.Int32(10),
+						Replicas:   proto.Int32(2),
+						PsRootPort: proto.Int32(10),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 										Resources: v1.ResourceRequirements{
 											Limits: map[v1.ResourceName]resource.Quantity{
 												"nvidia-gpu": resource.MustParse("1"),
@@ -115,20 +115,20 @@ func TestAddAccelertor(t *testing.T) {
 								},
 							},
 						},
-						TfReplicaType: PS,
+						MxReplicaType: SERVER,
 					},
 				},
 			},
-			expected: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			expected: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
-						Replicas: proto.Int32(2),
-						TfPort:   proto.Int32(10),
+						Replicas:   proto.Int32(2),
+						PsRootPort: proto.Int32(10),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 										Resources: v1.ResourceRequirements{
 											Limits: map[v1.ResourceName]resource.Quantity{
 												"nvidia-gpu": resource.MustParse("1"),
@@ -154,7 +154,7 @@ func TestAddAccelertor(t *testing.T) {
 								},
 							},
 						},
-						TfReplicaType: PS,
+						MxReplicaType: SERVER,
 					},
 				},
 			},
@@ -172,39 +172,39 @@ func TestAddAccelertor(t *testing.T) {
 		},
 		// Case 3 no GPUs
 		{
-			in: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			in: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
-						Replicas: proto.Int32(2),
-						TfPort:   proto.Int32(10),
+						Replicas:   proto.Int32(2),
+						PsRootPort: proto.Int32(10),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 									},
 								},
 							},
 						},
-						TfReplicaType: PS,
+						MxReplicaType: SERVER,
 					},
 				},
 			},
-			expected: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			expected: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
-						Replicas: proto.Int32(2),
-						TfPort:   proto.Int32(10),
+						Replicas:   proto.Int32(2),
+						PsRootPort: proto.Int32(10),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 									},
 								},
 							},
 						},
-						TfReplicaType: PS,
+						MxReplicaType: SERVER,
 					},
 				},
 			},
@@ -234,20 +234,20 @@ func TestAddAccelertor(t *testing.T) {
 
 func TestSetDefaults(t *testing.T) {
 	type testCase struct {
-		in       *TfJobSpec
-		expected *TfJobSpec
+		in       *MxJobSpec
+		expected *MxJobSpec
 	}
 
 	testCases := []testCase{
 		{
-			in: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			in: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 									},
 								},
 							},
@@ -255,21 +255,21 @@ func TestSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expected: &TfJobSpec{
-				ReplicaSpecs: []*TfReplicaSpec{
+			expected: &MxJobSpec{
+				ReplicaSpecs: []*MxReplicaSpec{
 					{
-						Replicas: proto.Int32(1),
-						TfPort:   proto.Int32(2222),
+						Replicas:   proto.Int32(1),
+						PsRootPort: proto.Int32(2222),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{
 									{
-										Name: "tensorflow",
+										Name: "mxnet",
 									},
 								},
 							},
 						},
-						TfReplicaType: MASTER,
+						MxReplicaType: WORKER,
 					},
 				},
 			},

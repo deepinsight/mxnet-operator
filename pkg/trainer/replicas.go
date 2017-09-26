@@ -6,89 +6,88 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/deepinsight/mlkube.io/pkg/spec"
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
 
 	log "github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
 	// TOOO(jlewi): Rename to apiErrors
+	"github.com/deepinsight/mxnet-operator/pkg/util"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sErrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
-	k8sErrors "k8s.io/apimachinery/pkg/util/errors"
 	batch "k8s.io/client-go/pkg/apis/batch/v1"
-	"github.com/deepinsight/mlkube.io/pkg/util"
 )
 
-// TFReplicaSet is a set of TF processes all acting as the same role (e.g. worker
-type TFReplicaSet struct {
+// MXReplicaSet is a set of MX processes all acting as the same role (e.g. worker
+type MXReplicaSet struct {
 	ClientSet kubernetes.Interface
 	// Job is a pointer to the TrainingJob to which this replica belongs.
 	Job  *TrainingJob
-	Spec spec.TfReplicaSpec
+	Spec spec.MxReplicaSpec
 }
 
-// TFReplicas is an interface for managing a set of replicas.
-type TFReplicaSetInterface interface {
+// MXReplicas is an interface for managing a set of replicas.
+type MXReplicaSetInterface interface {
 	Create() error
 	Delete() error
-	GetStatus() (spec.TfReplicaStatus, error)
+	GetStatus() (spec.MxReplicaStatus, error)
 }
 
-// TFConfig is a struct representing the TensorFlow config. This struct is turned into an environment
-// which is used by TensorFlow processes to configure themselves.
-type TfConfig struct {
-	// Cluster represents a TensorFlow ClusterSpec.
-	// See: https://www.tensorflow.org/api_docs/python/tf/train/ClusterSpechttps://www.tensorflow.org/api_docs/python/tf/train/ClusterSpec
+// MXConfig is a struct representing the MXNET config. This struct is turned into an environment
+// which is used by MXNET processes to configure themselves.
+type MxConfig struct {
+	// Cluster represents a MXNET ClusterSpec.
 	Cluster ClusterSpec            `json:"cluster"`
 	Task    map[string]interface{} `json:"task"`
 }
 
-func NewTFReplicaSet(clientSet kubernetes.Interface, tfReplicaSpec spec.TfReplicaSpec, job *TrainingJob) (*TFReplicaSet, error) {
-	if tfReplicaSpec.TfReplicaType == spec.MASTER && *tfReplicaSpec.Replicas != 1 {
-		return nil, errors.New("The MASTER must have Replicas = 1")
+func NewMXReplicaSet(clientSet kubernetes.Interface, mxReplicaSpec spec.MxReplicaSpec, job *TrainingJob) (*MXReplicaSet, error) {
+	if mxReplicaSpec.MxReplicaType == spec.SCHEDULER && *mxReplicaSpec.Replicas != 1 {
+		return nil, errors.New("The SCHEDULER must have Replicas = 1")
 	}
 
-	if tfReplicaSpec.TfPort == nil {
-		return nil, errors.New("tfReplicaSpec.TfPort can't be nil.")
+	if mxReplicaSpec.PsRootPort == nil {
+		return nil, errors.New("mxReplicaSpec.PsRootPort can't be nil.")
 	}
 
-	if tfReplicaSpec.Template == nil {
-		return nil, errors.New("tfReplicaSpec.Template can't be nil.")
+	if mxReplicaSpec.Template == nil {
+		return nil, errors.New("mxReplicaSpec.Template can't be nil.")
 	}
 
 	// Make sure the replica type is valid.
-	validReplicaTypes := []spec.TfReplicaType{spec.MASTER, spec.PS, spec.WORKER}
+	validReplicaTypes := []spec.MxReplicaType{spec.SCHEDULER, spec.SERVER, spec.WORKER}
 
 	isValidReplicaType := false
 	for _, t := range validReplicaTypes {
-		if t == tfReplicaSpec.TfReplicaType {
+		if t == mxReplicaSpec.MxReplicaType {
 			isValidReplicaType = true
 			break
 		}
 	}
 
 	if !isValidReplicaType {
-		return nil, fmt.Errorf("tfReplicaSpec.TfReplicaType is %v but must be one of %v", tfReplicaSpec.TfReplicaType, validReplicaTypes)
+		return nil, fmt.Errorf("mxReplicaSpec.MxReplicaType is %v but must be one of %v", mxReplicaSpec.MxReplicaType, validReplicaTypes)
 	}
-	return &TFReplicaSet{
+	return &MXReplicaSet{
 		ClientSet: clientSet,
 		Job:       job,
-		Spec:      tfReplicaSpec,
+		Spec:      mxReplicaSpec,
 	}, nil
 }
 
 // Labels returns the labels for this replica set.
-func (s *TFReplicaSet) Labels() KubernetesLabels {
+func (s *MXReplicaSet) Labels() KubernetesLabels {
 	return KubernetesLabels(map[string]string{
 		"mlkube.io": "",
-		"job_type":  string(s.Spec.TfReplicaType),
-		// runtime_id is set by Job.setup, which is called after the TfReplicaSet is created.
+		"job_type":  string(s.Spec.MxReplicaType),
+		// runtime_id is set by Job.setup, which is called after the MxReplicaSet is created.
 		// this is why labels aren't a member variable.
 		"runtime_id": s.Job.job.Spec.RuntimeId})
 }
 
-func (s *TFReplicaSet) Create() error {
+func (s *MXReplicaSet) Create() error {
 	for index := int32(0); index < *s.Spec.Replicas; index++ {
 		taskLabels := s.Labels()
 		taskLabels["task_index"] = fmt.Sprintf("%v", index)
@@ -104,7 +103,7 @@ func (s *TFReplicaSet) Create() error {
 				Ports: []v1.ServicePort{
 					{
 						Name: "tf-port",
-						Port: *s.Spec.TfPort,
+						Port: *s.Spec.PsRootPort,
 					},
 				},
 			},
@@ -122,28 +121,28 @@ func (s *TFReplicaSet) Create() error {
 			}
 		}
 
-		// Configure the TFCONFIG environment variable.
+		// Configure the MXCONFIG environment variable.
 		//
 		// TODO(jlewi): We would need to add support for hyperparameter jobs to support CMLE
 		// hyperparameter tuning.
-		tfConfig := TfConfig{
+		mxConfig := MxConfig{
 			Cluster: s.Job.ClusterSpec(),
 			Task: map[string]interface{}{
-				"type":  strings.ToLower(string(s.Spec.TfReplicaType)),
+				"type":  strings.ToLower(string(s.Spec.MxReplicaType)),
 				"index": index,
 			},
 		}
-		tfConfigJson, err := json.Marshal(tfConfig)
+		mxConfigJson, err := json.Marshal(mxConfig)
 		if err != nil {
-			log.Errorf("Job: %v serializing tfConfig: %v return error; %v", s.Job.job.Metadata.Name, util.Pformat(tfConfig), err)
+			log.Errorf("Job: %v serializing mxConfig: %v return error; %v", s.Job.job.Metadata.Name, util.Pformat(mxConfig), err)
 			return err
 		}
 
 		// Make a copy of the template because we will modify it below.
 		// TODO(jlewi): I don't fully understand why this works but setting Template: *s.Spec.Template
-		// leads to TF_CONFIG being added multiples as an environment variable.
+		// leads to MX_CONFIG being added multiples as an environment variable.
 		newPodSpecTemplate := *s.Spec.Template
-		// TODO(jlewi): We need to set environment variable TF_CONFIG.
+		// TODO(jlewi): We need to set environment variable MX_CONFIG.
 		newJ := &batch.Job{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:   s.jobName(index),
@@ -165,20 +164,20 @@ func (s *TFReplicaSet) Create() error {
 			newJ.Spec.Template.ObjectMeta.Labels[k] = v
 		}
 
-		// Add TF_CONFIG environment variable.
+		// Add MX_CONFIG environment variable.
 		for i, _ := range newJ.Spec.Template.Spec.Containers {
 			// We can't get c in the loop variable because that would be by value so our modifications
 			// wouldn't have any effect.
 			c := &newJ.Spec.Template.Spec.Containers[i]
-			if spec.ContainerName(c.Name) != spec.TENSORFLOW {
+			if spec.ContainerName(c.Name) != spec.MXNET {
 				continue
 			}
 			if len(c.Env) == 0 {
 				c.Env = make([]v1.EnvVar, 0)
 			}
 			c.Env = append(c.Env, v1.EnvVar{
-				Name:  "TF_CONFIG",
-				Value: string(tfConfigJson),
+				Name:  "MX_CONFIG",
+				Value: string(mxConfigJson),
 			})
 		}
 
@@ -199,7 +198,7 @@ func (s *TFReplicaSet) Create() error {
 }
 
 // Delete deletes the replicas
-func (s *TFReplicaSet) Delete() error {
+func (s *MXReplicaSet) Delete() error {
 	selector, err := s.Labels().ToSelector()
 	if err != nil {
 		return err
@@ -260,7 +259,7 @@ func replicaStatusFromPodList(l v1.PodList, name spec.ContainerName) spec.Replic
 		return spec.ReplicaStateRunning
 	}
 
-	var tfState v1.ContainerState
+	var mxState v1.ContainerState
 
 	for _, i := range latest.Status.ContainerStatuses {
 		if i.Name != string(name) {
@@ -268,27 +267,25 @@ func replicaStatusFromPodList(l v1.PodList, name spec.ContainerName) spec.Replic
 		}
 
 		// We need to decide whether to use the current state or the previous termination state.
-		tfState = i.State
+		mxState = i.State
 
 		// If the container previously terminated we will look at the termination to decide whether it is a retryable
 		// or permanenent error.
 		if i.LastTerminationState.Terminated != nil {
-			tfState = i.LastTerminationState
+			mxState = i.LastTerminationState
 		}
 	}
 
-
-	if tfState.Running != nil || tfState.Waiting != nil {
+	if mxState.Running != nil || mxState.Waiting != nil {
 		return spec.ReplicaStateRunning
 	}
 
-	if tfState.Terminated != nil {
-		if tfState.Terminated.ExitCode == 0 {
+	if mxState.Terminated != nil {
+		if mxState.Terminated.ExitCode == 0 {
 			return spec.ReplicaStateSucceeded
 		}
 
-
-		if isRetryableTerminationState(tfState.Terminated) {
+		if isRetryableTerminationState(mxState.Terminated) {
 			// Since its a retryable error just return RUNNING.
 			// We can just let Kubernetes restart the container to retry.
 			return spec.ReplicaStateRunning
@@ -301,10 +298,10 @@ func replicaStatusFromPodList(l v1.PodList, name spec.ContainerName) spec.Replic
 }
 
 // Status returns the status of the replica set.
-func (s *TFReplicaSet) GetStatus() (spec.TfReplicaStatus, error) {
+func (s *MXReplicaSet) GetStatus() (spec.MxReplicaStatus, error) {
 
-	status := spec.TfReplicaStatus{
-		TfReplicaType:  s.Spec.TfReplicaType,
+	status := spec.MxReplicaStatus{
+		MxReplicaType:  s.Spec.MxReplicaType,
 		State:          spec.ReplicaStateUnknown,
 		ReplicasStates: make(map[spec.ReplicaState]int),
 	}
@@ -353,7 +350,7 @@ func (s *TFReplicaSet) GetStatus() (spec.TfReplicaStatus, error) {
 			continue
 		}
 
-		status := replicaStatusFromPodList(*l, spec.TENSORFLOW)
+		status := replicaStatusFromPodList(*l, spec.MXNET)
 		increment(status)
 	}
 
@@ -380,6 +377,6 @@ func (s *TFReplicaSet) GetStatus() (spec.TfReplicaStatus, error) {
 	return status, nil
 }
 
-func (s *TFReplicaSet) jobName(index int32) string {
-	return fmt.Sprintf("%v-%v-%v-%v", s.Job.job.Metadata.Name, strings.ToLower(string(s.Spec.TfReplicaType)), s.Job.job.Spec.RuntimeId, index)
+func (s *MXReplicaSet) jobName(index int32) string {
+	return fmt.Sprintf("%v-%v-%v-%v", s.Job.job.Metadata.Name, strings.ToLower(string(s.Spec.MxReplicaType)), s.Job.job.Spec.RuntimeId, index)
 }

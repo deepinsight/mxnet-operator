@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/deepinsight/mlkube.io/pkg/spec"
+	"github.com/deepinsight/mxnet-operator/pkg/spec"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kwatch "k8s.io/apimachinery/pkg/watch"
@@ -38,7 +38,7 @@ func pollEvent(decoder *json.Decoder) (*Event, *metav1.Status, error) {
 
 	ev := &Event{
 		Type:   re.Type,
-		Object: &spec.TfJob{},
+		Object: &spec.MxJob{},
 	}
 	err = json.Unmarshal(re.Object, ev.Object)
 	if err != nil {

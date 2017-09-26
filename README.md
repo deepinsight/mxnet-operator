@@ -29,8 +29,8 @@ K8s makes it easy to configure and deploy each set of MXNet replicas. Various to
 TODO
 <!--
 
-TfJob provides a K8s resource representing a single, distributed, TensorFlow job. 
-The Spec and Status (defined in [tf_job.go](https://github.com/jlewi/mlkube.io/blob/master/pkg/spec/tf_job.go))
+MxJob provides a K8s resource representing a single, distributed, TensorFlow job. 
+The Spec and Status (defined in [mx_job.go](https://github.com/jlewi/mlkube.io/blob/master/pkg/spec/mx_job.go))
 are customized for TensorFlow. The spec allows specifying the Docker image and arguments to use for each TensorFlow
 replica (i.e. master, worker, and parameter server). The status provides relevant information such as the number of
 replicas in various states.
@@ -48,14 +48,14 @@ To list jobs
 kubectl get tfjobs
 
 NAME          KINDS
-example-job   TfJob.v1beta1.mlkube.io
+example-job   MxJob.v1beta1.mlkube.io
 ```
 
 ## Design
 
 The code is closely modeled on Coreos's [etcd-operator](https://github.com/coreos/etcd-operator).
 
-The TfJob Spec(defined in [tf_job.go](https://github.com/jlewi/mlkube.io/blob/master/pkg/spec/tf_job.go)) 
+The MxJob Spec(defined in [mx_job.go](https://github.com/jlewi/mlkube.io/blob/master/pkg/spec/mx_job.go)) 
 reuses the existing Kubernetes structure PodTemplateSpec to describe TensorFlow processes. 
 We use PodTemplateSpec because we want to make it easy for users to 
   configure the processes; for example setting resource requirements or adding volumes. 
@@ -112,7 +112,7 @@ space drivers that need to be in sync. The kernel driver must be installed on th
 
 ### Mounting NVIDIA libraries from the host.
 
-The TfJob controller can be configured with a list of volumes that should be mounted from the host into the container
+The MxJob controller can be configured with a list of volumes that should be mounted from the host into the container
 to make GPUs work. Here's an example:
 
 ```
@@ -143,14 +143,14 @@ To attach GPUs specify the GPU resource on the container e.g.
 
 ```
 apiVersion: "mlkube.io/v1beta1"
-kind: "TfJob"
+kind: "MxJob"
 metadata:
   name: "tf-smoke-gpu"
 spec:
   replica_specs:
     - replicas: 1
       tfPort: 2222
-      tfReplicaType: MASTER
+      mxReplicaType: MASTER
       template:
         spec:
           containers:
@@ -164,7 +164,7 @@ spec:
 
 ### Requesting a TensorBoard instance
 
-You can also ask the `TfJob` operator to create a TensorBoard instance to monitor your training.
+You can also ask the `MxJob` operator to create a TensorBoard instance to monitor your training.
 Here are the configuration options for TensorBoard:
 
 | Name | Description | Required | Default |
@@ -178,14 +178,14 @@ For example:
 
 ```
 apiVersion: "mlkube.io/v1beta1"
-kind: "TfJob"
+kind: "MxJob"
 metadata:
   name: "tf-smoke-gpu"
 spec:
   replica_specs:
     - replicas: 1
       tfPort: 2222
-      tfReplicaType: MASTER
+      mxReplicaType: MASTER
       template:
         spec:
           containers:
@@ -259,8 +259,8 @@ kubectl logs
 
 So that users don't need to depend on cluster level logging just to see basic logs.
 
-In the current implementation, pods aren't deleted until the TfJob is deleted. This allows standard out/error to be fetched
-via kubectl. Unfortunately, this leaves PODs in the RUNNING state when the TfJob is marked as done which is confusing. 
+In the current implementation, pods aren't deleted until the MxJob is deleted. This allows standard out/error to be fetched
+via kubectl. Unfortunately, this leaves PODs in the RUNNING state when the MxJob is marked as done which is confusing. 
 
 ### Status information
 
@@ -269,7 +269,7 @@ need to figure out what the proper phases and conditions to report are.
 
 ### Failure/Termination Semantics
 
-The semantics for aggregating status of individual replicas into overall TfJob status needs to be thought out.
+The semantics for aggregating status of individual replicas into overall MxJob status needs to be thought out.
 
 ### Dead/Unnecessary code
 
