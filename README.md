@@ -1,6 +1,5 @@
-# K8s Custom Resource and Operator For TensorFlow jobs
-
-[![Build Status](https://travis-ci.org/jlewi/mlkube.io.svg?branch=master)](https://travis-ci.org/jlewi/mlkube.io)
+# K8s Custom Resource and Operator For MXNet jobs 
+  (Forks initally from tf-operator project https://github.com/jlewi/mlkube.io.git)
 
 ## Requirements
 
@@ -8,23 +7,27 @@ Custom Resources require Kubernetes 1.7
 
 ## Motivation
 
-Distributed TensorFlow training jobs require managing multiple sets of TensorFlow replicas. 
-Each set of replicas usually has a different role in the job. For example, one set acts
- as parameter servers, another provides workers and another provides a controller.
- 
-K8s makes it easy to configure and deploy each set of TF replicas. Various tools like
+Distributed MXNet training jobs require managing multiple sets of MXNet replicas. 
+There are three kinds of replicas sets which act as different roles in the job:
+Server (1-n instance)
+Worker (1-n instance)
+Scheduler(only one instance in a training cluster). 
+
+K8s makes it easy to configure and deploy each set of MXNet replicas. Various tools like
  [helm](https://github.com/kubernetes/helm) and [ksonnet](http://ksonnet.heptio.com/) can
- be used to simplify generating the configs for a TF job.
+ be used to simplify generating the configs for a MXNet job.
  
  However, in addition to generating the configs we need some custom control logic because
  K8s built-in controllers (Jobs, ReplicaSets, StatefulSets, etc...) don't provide the semantics
- needed for managing TF jobs.
+ needed for managing MXNet jobs.
  
  To solve this we define a 
  [K8S Custom Resource](https://kubernetes.io/docs/concepts/api-extension/custom-resources/)
- and [Operator](https://coreos.com/blog/introducing-operators.html) to manage a TensorFlow
+ and [Operator](https://coreos.com/blog/introducing-operators.html) to manage a MXNet
  job on K8s.
 
+TODO
+<!--
 
 TfJob provides a K8s resource representing a single, distributed, TensorFlow job. 
 The Spec and Status (defined in [tf_job.go](https://github.com/jlewi/mlkube.io/blob/master/pkg/spec/tf_job.go))
@@ -67,7 +70,7 @@ Leader election allows a K8s deployment resource to be used to upgrade the opera
 1. Clone the repository
 
     ```
-    git clone https://github.com/deepinsight/mlkube.io/
+    git clone https://github.com/jlewi/mlkube.io/
     ```
 
 1. Deploy the operator
@@ -289,11 +292,11 @@ The helm package provides some basic E2E tests.
 Create a symbolic link inside your GOPATH to the location you checked out the code
 
     ```
-    mkdir -p ${GOPATH}/src/github.com/deepinsight
+    mkdir -p ${GOPATH}/src/github.com/jlewi
     ln -sf ${GIT_TRAINING} ${GOPATH}/src/mlkube.io
     ```
 
-  * GIT_TRAINING should be the location where you checked out https://github.com/deepinsight/mlkube.io
+  * GIT_TRAINING should be the location where you checked out https://github.com/jlewi/mlkube.io
 
 Resolve dependencies (if you don't have glide install, check how to do it [here](https://github.com/Masterminds/glide/blob/master/README.md#install))
 
@@ -304,7 +307,7 @@ glide install
 Build it
 
 ```
-go install github.com/deepinsight/mlkube.io/cmd/tf_operator
+go install github.com/jlewi/mlkube.io/cmd/tf_operator
 ```
 
 ## Runing the Operator Locally
@@ -338,3 +341,4 @@ with the versions vendored by mlkube; e.g.
 ```
 rm -rf  vendor/k8s.io/apiextensions-apiserver/vendor
 ```
+-->
