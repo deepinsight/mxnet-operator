@@ -1,4 +1,4 @@
-name: tf-job-operator
+name: mx-job-operator
 home: https://github.com/deepinsight/mxnet-operator
 version: 0.1.0
 appVersion: 0.1.0

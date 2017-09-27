@@ -55,7 +55,7 @@ func run() error {
 			ReplicaSpecs: []*spec.MxReplicaSpec{
 				{
 					Replicas:      proto.Int32(1),
-					TfPort:        proto.Int32(2222),
+					PsRootPort:    proto.Int32(9091),
 					MxReplicaType: spec.MASTER,
 					Template: &v1.PodTemplateSpec{
 						Spec: v1.PodSpec{
@@ -71,7 +71,7 @@ func run() error {
 				},
 				{
 					Replicas:      proto.Int32(1),
-					TfPort:        proto.Int32(2222),
+					PsRootPort:    proto.Int32(9091),
 					MxReplicaType: spec.PS,
 					Template: &v1.PodTemplateSpec{
 						Spec: v1.PodSpec{
@@ -87,7 +87,7 @@ func run() error {
 				},
 				{
 					Replicas:      proto.Int32(1),
-					TfPort:        proto.Int32(2222),
+					PsRootPort:    proto.Int32(9091),
 					MxReplicaType: spec.WORKER,
 					Template: &v1.PodTemplateSpec{
 						Spec: v1.PodSpec{
@@ -113,30 +113,30 @@ func run() error {
 	}
 
 	// Wait for the job to complete for up to 2 minutes.
-	var tfJob *spec.MxJob
+	var mxJob *spec.MxJob
 	for endTime := time.Now().Add(2 * time.Minute); time.Now().Before(endTime); {
-		tfJob, err = mxJobClient.Get(Namespace, name)
+		mxJob, err = mxJobClient.Get(Namespace, name)
 		if err != nil {
 			log.Warningf("There was a problem getting MxJob: %v; error %v", name, err)
 		}
 
-		if tfJob.Status.State == spec.StateSucceeded || tfJob.Status.State == spec.StateFailed {
+		if mxJob.Status.State == spec.StateSucceeded || mxJob.Status.State == spec.StateFailed {
 			break
 		}
-		log.Infof("Waiting for job %v to finish:\n%v", name, util.Pformat(tfJob))
+		log.Infof("Waiting for job %v to finish:\n%v", name, util.Pformat(mxJob))
 		time.Sleep(5 * time.Second)
 	}
 
-	if tfJob == nil {
+	if mxJob == nil {
 		return fmt.Errorf("Failed to get MxJob %v", name)
 	}
 
-	if tfJob.Status.State != spec.StateSucceeded {
+	if mxJob.Status.State != spec.StateSucceeded {
 		// TODO(jlewi): Should we clean up the job.
-		return fmt.Errorf("MxJob %v did not succeed;\n %v", name, util.Pformat(tfJob))
+		return fmt.Errorf("MxJob %v did not succeed;\n %v", name, util.Pformat(mxJob))
 	}
 
-	if tfJob.Spec.RuntimeId == "" {
+	if mxJob.Spec.RuntimeId == "" {
 		return fmt.Errorf("MxJob %v doesn't have a RuntimeId", name)
 	}
 
@@ -145,7 +145,7 @@ func run() error {
 		baseName := strings.ToLower(string(r.MxReplicaType))
 
 		for i := 0; i < int(*r.Replicas); i += 1 {
-			jobName := fmt.Sprintf("%v-%v-%v", baseName, tfJob.Spec.RuntimeId, i)
+			jobName := fmt.Sprintf("%v-%v-%v", baseName, mxJob.Spec.RuntimeId, i)
 
 			_, err := kubeCli.BatchV1().Jobs(Namespace).Get(jobName, metav1.GetOptions{})
 
@@ -169,7 +169,7 @@ func run() error {
 		baseName := strings.ToLower(string(r.MxReplicaType))
 
 		for i := 0; i < int(*r.Replicas); i += 1 {
-			jobName := fmt.Sprintf("%v-%v-%v", baseName, tfJob.Spec.RuntimeId, i)
+			jobName := fmt.Sprintf("%v-%v-%v", baseName, mxJob.Spec.RuntimeId, i)
 
 			jobs[jobName] = true
 		}

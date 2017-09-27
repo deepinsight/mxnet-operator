@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// TFJobClient defines an interface for working with MxJob CRDs.
+// MXJobClient defines an interface for working with MxJob CRDs.
 type MxJobClient interface {
 	// Get returns a MxJob
 	Get(ns string, name string) (*spec.MxJob, error)
@@ -74,7 +74,7 @@ func NewMxJobClient() (*MxJobRestClient, error) {
 	return cli, nil
 }
 
-// New TFJob client for out-of-cluster
+// New MXJob client for out-of-cluster
 func NewMxJobClientExternal(config *rest.Config) (*MxJobRestClient, error) {
 
 	config.GroupVersion = &schema.GroupVersion{

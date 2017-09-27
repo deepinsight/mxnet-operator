@@ -102,7 +102,7 @@ func (s *MXReplicaSet) Create() error {
 				Selector: taskLabels,
 				Ports: []v1.ServicePort{
 					{
-						Name: "tf-port",
+						Name: "ps-root-port",
 						Port: *s.Spec.PsRootPort,
 					},
 				},

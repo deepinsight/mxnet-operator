@@ -259,7 +259,7 @@ func TestSetDefaults(t *testing.T) {
 				ReplicaSpecs: []*MxReplicaSpec{
 					{
 						Replicas:   proto.Int32(1),
-						PsRootPort: proto.Int32(2222),
+						PsRootPort: proto.Int32(9091),
 						Template: &v1.PodTemplateSpec{
 							Spec: v1.PodSpec{
 								Containers: []v1.Container{

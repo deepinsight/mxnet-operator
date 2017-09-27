@@ -104,14 +104,14 @@ func main() {
 	}()
 
 	if printVersion {
-		fmt.Println("tf_operator Version:", version.Version)
+		fmt.Println("mx_operator Version:", version.Version)
 		fmt.Println("Git SHA:", version.GitSHA)
 		fmt.Println("Go Version:", runtime.Version())
 		fmt.Printf("Go OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 		os.Exit(0)
 	}
 
-	log.Infof("tf_operator Version: %v", version.Version)
+	log.Infof("mx_operator Version: %v", version.Version)
 	log.Infof("Git SHA: %s", version.GitSHA)
 	log.Infof("Go Version: %s", runtime.Version())
 	log.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
@@ -126,7 +126,7 @@ func main() {
 	rl := &resourcelock.EndpointsLock{
 		EndpointsMeta: v1.ObjectMeta{
 			Namespace: namespace,
-			Name:      "tf-operator",
+			Name:      "mx-operator",
 		},
 		Client: k8sutil.MustNewKubeClient(),
 		LockConfig: resourcelock.ResourceLockConfig{

@@ -5,7 +5,7 @@ metadata:
 spec:
   replica_specs:
     - replicas: 1
-      tfPort: 2222
+      PsRootPort: 9091
       mxReplicaType: MASTER
       template:
         spec:
@@ -14,7 +14,7 @@ spec:
               name: tensorflow
           restartPolicy: OnFailure
     - replicas: 1
-      tfPort: 2222
+      PsRootPort: 9091
       mxReplicaType: WORKER
       template:
         spec:

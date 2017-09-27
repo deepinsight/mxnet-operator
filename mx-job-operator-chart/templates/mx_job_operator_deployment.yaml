@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: tf-job-operator-config
+  name: mx-job-operator-config
   namespace: default
 data:
   controller_config_file.yaml: |
@@ -20,16 +20,16 @@ data:
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: tf-job-operator
+  name: mx-job-operator
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        name: tf-job-operator
+        name: mx-job-operator
     spec:
       containers:
-      - name: tf-job-operator
+      - name: mx-job-operator
         image: {{ .Values.image }}
         command:
           - /opt/mlkube/tf_operator
@@ -52,4 +52,4 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: tf-job-operator-config
+            name: mx-job-operator-config

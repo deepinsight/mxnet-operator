@@ -45,7 +45,7 @@ kubectl create -f examples/tf_job.yaml
 To list jobs
 
 ```
-kubectl get tfjobs
+kubectl get mxjobs
 
 NAME          KINDS
 example-job   MxJob.v1beta1.mlkube.io
@@ -76,7 +76,7 @@ Leader election allows a K8s deployment resource to be used to upgrade the opera
 1. Deploy the operator
 
    ```
-   helm install tf-job-chart/ -n tf-job --wait --replace
+   helm install mx-job-chart/ -n mx-job --wait --replace
    ```
 
 1. Make sure the operator is running
@@ -85,16 +85,16 @@ Leader election allows a K8s deployment resource to be used to upgrade the opera
     kubectl get pods
     
     NAME                               READY     STATUS    RESTARTS   AGE
-    tf-job-operator-3083500267-wxj43   1/1       Running   0          48m
+    mx-job-operator-3083500267-wxj43   1/1       Running   0          48m
 
     ```
 
 1. Run the helm tests
 
     ```
-    helm test tf-job
-    RUNNING: tf-job-tfjob-test-pqxkwk
-    PASSED: tf-job-tfjob-test-pqxkwk
+    helm test mx-job
+    RUNNING: mx-job-tfjob-test-pqxkwk
+    PASSED: mx-job-tfjob-test-pqxkwk
     ```
 
 ## Using GPUs
@@ -149,7 +149,7 @@ metadata:
 spec:
   replica_specs:
     - replicas: 1
-      tfPort: 2222
+      PsRootPort: 9091
       mxReplicaType: MASTER
       template:
         spec:
@@ -184,7 +184,7 @@ metadata:
 spec:
   replica_specs:
     - replicas: 1
-      tfPort: 2222
+      PsRootPort: 9091
       mxReplicaType: MASTER
       template:
         spec:
@@ -218,13 +218,13 @@ A simplistic TF program is in the directory tf_sample.
 1. Start the example
 
     ```
-    helm install --name=tf-job ./examples/tf_job
+    helm install --name=mx-job ./examples/tf_job
     ```
     
 1. Check the job
 
     ```
-    kubectl get tfjobs -o yaml
+    kubectl get mxjobs -o yaml
     ```
 
 ## Project Status
