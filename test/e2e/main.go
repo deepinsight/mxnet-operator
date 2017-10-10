@@ -52,16 +52,17 @@ func run() error {
 			},
 		},
 		Spec: spec.MxJobSpec{
+			JobMode: "dist",
 			ReplicaSpecs: []*spec.MxReplicaSpec{
 				{
 					Replicas:      proto.Int32(1),
 					PsRootPort:    proto.Int32(9091),
-					MxReplicaType: spec.MASTER,
+					MxReplicaType: spec.SCHEDULER,
 					Template: &v1.PodTemplateSpec{
 						Spec: v1.PodSpec{
 							Containers: []v1.Container{
 								{
-									Name:  "tensorflow",
+									Name:  "mxnet",
 									Image: *image,
 								},
 							},
@@ -71,13 +72,12 @@ func run() error {
 				},
 				{
 					Replicas:      proto.Int32(1),
-					PsRootPort:    proto.Int32(9091),
-					MxReplicaType: spec.PS,
+					MxReplicaType: spec.SERVER,
 					Template: &v1.PodTemplateSpec{
 						Spec: v1.PodSpec{
 							Containers: []v1.Container{
 								{
-									Name:  "tensorflow",
+									Name:  "mxnet",
 									Image: *image,
 								},
 							},
@@ -87,13 +87,12 @@ func run() error {
 				},
 				{
 					Replicas:      proto.Int32(1),
-					PsRootPort:    proto.Int32(9091),
 					MxReplicaType: spec.WORKER,
 					Template: &v1.PodTemplateSpec{
 						Spec: v1.PodSpec{
 							Containers: []v1.Container{
 								{
-									Name:  "tensorflow",
+									Name:  "mxnet",
 									Image: *image,
 								},
 							},
