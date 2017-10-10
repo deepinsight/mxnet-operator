@@ -230,7 +230,7 @@ func (s *MXReplicaSet) createDist() error {
 				}
 			}
 			c.Env[4].Name = "DMLC_ROLE"
-			c.Env[4].Value = string(s.Spec.MxReplicaType)
+			c.Env[4].Value = strings.ToLower(string(s.Spec.MxReplicaType))
 		}
 
 		log.Infof("Creating Job: %v", newJ.ObjectMeta.Name)
@@ -278,11 +278,11 @@ func (s *MXReplicaSet) Delete() error {
 	}
 
 	// Services doesn't support DeleteCollection so we delete them individually.
-	for index := int32(0); index < *s.Spec.Replicas; index++ {
-		err = s.ClientSet.CoreV1().Services(s.Job.job.Metadata.Namespace).Delete(s.jobName(index), &meta_v1.DeleteOptions{})
+	if s.Spec.MxReplicaType == spec.SCHEDULER {
+		err = s.ClientSet.CoreV1().Services(s.Job.job.Metadata.Namespace).Delete(s.jobName(0), &meta_v1.DeleteOptions{})
 
 		if err != nil {
-			log.Errorf("Error deleting service %v; %v", s.jobName(index), err)
+			log.Errorf("Error deleting service %v; %v", s.jobName(0), err)
 			failures = true
 		}
 	}

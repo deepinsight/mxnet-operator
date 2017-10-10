@@ -131,7 +131,7 @@ type MxReplicaSpec struct {
 // Validate checks that the MxJobSpec is valid.
 func (c *MxJobSpec) Validate() error {
 	// Check that each replica has a MXNet container.
-	var replicaRoleMap map[MxReplicaType]bool
+	replicaRoleMap := make(map[MxReplicaType]bool)
 	replicaRoleMap[SCHEDULER] = false
 	replicaRoleMap[SERVER] = false
 	replicaRoleMap[WORKER] = false
