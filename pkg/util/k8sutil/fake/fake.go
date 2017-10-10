@@ -14,8 +14,17 @@ func (c *MxJobClientFake) Get(ns string, name string) (*spec.MxJob, error) {
 	return &spec.MxJob{}, nil
 }
 
+func (c *MxJobClientFake) Delete(ns string, name string) (*spec.MxJob, error) {
+	return &spec.MxJob{}, nil
+}
+
 func (c *MxJobClientFake) List(ns string) (*spec.MxJobList, error) {
 	return &spec.MxJobList{}, nil
+}
+
+func (c *MxJobClientFake) Create(ns string, j *spec.MxJob) (*spec.MxJob, error) {
+	result := *j
+	return &result, nil
 }
 
 // Update a MxJob.

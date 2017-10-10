@@ -13,7 +13,6 @@ import (
 	log "github.com/golang/glog"
 
 	"math"
-	"strings"
 	"sync"
 	"time"
 
@@ -72,10 +71,6 @@ type TrainingJob struct {
 	gc *garbagecollection.GC
 }
 
-// ClusterSpec represents a cluster mxnet specification.
-// It is a map from job names to network addressess.
-type ClusterSpec map[string][]string
-
 func initJob(kubeCli kubernetes.Interface, mxJobClient k8sutil.MxJobClient, job *spec.MxJob, stopC <-chan struct{}, wg *sync.WaitGroup) (*TrainingJob, error) {
 	j := &TrainingJob{
 		KubeCli:     kubeCli,
@@ -116,22 +111,6 @@ func NewJob(kubeCli kubernetes.Interface, mxJobClient k8sutil.MxJobClient, mxjob
 	}()
 
 	return j, nil
-}
-
-func (j *TrainingJob) ClusterSpec() ClusterSpec {
-	clusterSpec := make(ClusterSpec)
-
-	for _, p := range j.Replicas {
-		replicaNames := make([]string, 0, *p.Spec.Replicas)
-
-		for i := int32(0); i < *p.Spec.Replicas; i++ {
-			replicaNames = append(replicaNames, fmt.Sprintf("%v:%v", p.jobName(i), p.Spec.PsRootPort))
-		}
-
-		clusterSpec[strings.ToLower(string(p.Spec.MxReplicaType))] = replicaNames
-	}
-
-	return clusterSpec
 }
 
 // createResources creates all the replicas

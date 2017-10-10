@@ -1,9 +1,9 @@
 package trainer
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/deepinsight/mxnet-operator/pkg/spec"
@@ -38,9 +38,7 @@ type MXReplicaSetInterface interface {
 // MXConfig is a struct representing the MXNET config. This struct is turned into an environment
 // which is used by MXNET processes to configure themselves.
 type MxConfig struct {
-	// Cluster represents a MXNET ClusterSpec.
-	Cluster ClusterSpec            `json:"cluster"`
-	Task    map[string]interface{} `json:"task"`
+	Task map[string]interface{} `json:"task"`
 }
 
 func NewMXReplicaSet(clientSet kubernetes.Interface, mxReplicaSpec spec.MxReplicaSpec, job *TrainingJob) (*MXReplicaSet, error) {
@@ -48,8 +46,10 @@ func NewMXReplicaSet(clientSet kubernetes.Interface, mxReplicaSpec spec.MxReplic
 		return nil, errors.New("The SCHEDULER must have Replicas = 1")
 	}
 
-	if mxReplicaSpec.PsRootPort == nil {
-		return nil, errors.New("mxReplicaSpec.PsRootPort can't be nil.")
+	if mxReplicaSpec.MxReplicaType == spec.SCHEDULER {
+		if mxReplicaSpec.PsRootPort == nil {
+			return nil, errors.New("mxReplicaSpec.PsRootPort can't be nil.")
+		}
 	}
 
 	if mxReplicaSpec.Template == nil {
@@ -80,44 +80,95 @@ func NewMXReplicaSet(clientSet kubernetes.Interface, mxReplicaSpec spec.MxReplic
 // Labels returns the labels for this replica set.
 func (s *MXReplicaSet) Labels() KubernetesLabels {
 	return KubernetesLabels(map[string]string{
-		"mlkube.io": "",
-		"job_type":  string(s.Spec.MxReplicaType),
+		"mxnet.mlkube.io": "",
+		"job_type":        string(s.Spec.MxReplicaType),
 		// runtime_id is set by Job.setup, which is called after the MxReplicaSet is created.
 		// this is why labels aren't a member variable.
 		"runtime_id": s.Job.job.Spec.RuntimeId})
 }
 
 func (s *MXReplicaSet) Create() error {
+	if s.Job.job.Spec.JobMode == spec.LocalJob {
+		return s.createLocal()
+	} else if s.Job.job.Spec.JobMode == spec.DistJob {
+		return s.createDist()
+	}
+	return nil
+}
+
+func (s *MXReplicaSet) createLocal() error {
+
+	newPodSpecTemplate := *s.Spec.Template
+	taskLabels := s.Labels()
+	taskLabels["task_index"] = fmt.Sprintf("%v", 0)
+	newJ := &batch.Job{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:   s.jobName(0),
+			Labels: taskLabels,
+		},
+		Spec: batch.JobSpec{
+			Completions: proto.Int32(1),
+			Parallelism: proto.Int32(1),
+			Template:    newPodSpecTemplate,
+		},
+	}
+
+	if newJ.Spec.Template.ObjectMeta.Labels == nil {
+		newJ.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+	}
+
+	// Pods need to be tagged with the labels.
+	for k, v := range taskLabels {
+		newJ.Spec.Template.ObjectMeta.Labels[k] = v
+	}
+
+	log.Infof("Creating Job: %v", newJ.ObjectMeta.Name)
+	_, err := s.ClientSet.BatchV1().Jobs(s.Job.job.Metadata.Namespace).Create(newJ)
+
+	// If the job already exists do nothing.
+	if err != nil {
+		if k8s_errors.IsAlreadyExists(err) {
+			log.Infof("%v already exists.", s.jobName(0))
+
+		} else {
+			return k8sErrors.NewAggregate([]error{fmt.Errorf("Creating Job %v returned error.", newJ.ObjectMeta.Name), err})
+		}
+	}
+	return nil
+}
+
+func (s *MXReplicaSet) createDist() error {
 	for index := int32(0); index < *s.Spec.Replicas; index++ {
 		taskLabels := s.Labels()
 		taskLabels["task_index"] = fmt.Sprintf("%v", index)
 
-		// Create the service.
-		service := &v1.Service{
-			ObjectMeta: meta_v1.ObjectMeta{
-				Name:   s.jobName(index),
-				Labels: taskLabels,
-			},
-			Spec: v1.ServiceSpec{
-				Selector: taskLabels,
-				Ports: []v1.ServicePort{
-					{
-						Name: "ps-root-port",
-						Port: *s.Spec.PsRootPort,
+		if s.Spec.MxReplicaType == spec.SCHEDULER {
+			// Create the service.
+			service := &v1.Service{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:   s.jobName(index),
+					Labels: taskLabels,
+				},
+				Spec: v1.ServiceSpec{
+					Selector: taskLabels,
+					Ports: []v1.ServicePort{
+						{
+							Name: "ps-root-port",
+							Port: *s.Spec.PsRootPort,
+						},
 					},
 				},
-			},
-		}
+			}
 
-		log.Infof("Creating Service: %v", service.ObjectMeta.Name)
-		_, err := s.ClientSet.CoreV1().Services(s.Job.job.Metadata.Namespace).Create(service)
-
-		// If the job already exists do nothing.
-		if err != nil {
-			if k8s_errors.IsAlreadyExists(err) {
-				log.Infof("Service %v already exists.", s.jobName(index))
-			} else {
-				return k8sErrors.NewAggregate([]error{fmt.Errorf("Creating service %v returned error.", service.ObjectMeta.Name), err})
+			log.Infof("Creating Service: %v", service.ObjectMeta.Name)
+			_, err := s.ClientSet.CoreV1().Services(s.Job.job.Metadata.Namespace).Create(service)
+			// If the job already exists do nothing.
+			if err != nil {
+				if k8s_errors.IsAlreadyExists(err) {
+					log.Infof("Service %v already exists.", s.jobName(index))
+				} else {
+					return k8sErrors.NewAggregate([]error{fmt.Errorf("Creating service %v returned error.", service.ObjectMeta.Name), err})
+				}
 			}
 		}
 
@@ -125,18 +176,6 @@ func (s *MXReplicaSet) Create() error {
 		//
 		// TODO(jlewi): We would need to add support for hyperparameter jobs to support CMLE
 		// hyperparameter tuning.
-		mxConfig := MxConfig{
-			Cluster: s.Job.ClusterSpec(),
-			Task: map[string]interface{}{
-				"type":  strings.ToLower(string(s.Spec.MxReplicaType)),
-				"index": index,
-			},
-		}
-		mxConfigJson, err := json.Marshal(mxConfig)
-		if err != nil {
-			log.Errorf("Job: %v serializing mxConfig: %v return error; %v", s.Job.job.Metadata.Name, util.Pformat(mxConfig), err)
-			return err
-		}
 
 		// Make a copy of the template because we will modify it below.
 		// TODO(jlewi): I don't fully understand why this works but setting Template: *s.Spec.Template
@@ -164,7 +203,7 @@ func (s *MXReplicaSet) Create() error {
 			newJ.Spec.Template.ObjectMeta.Labels[k] = v
 		}
 
-		// Add MX_CONFIG environment variable.
+		// Add MXNet environment variable.
 		for i, _ := range newJ.Spec.Template.Spec.Containers {
 			// We can't get c in the loop variable because that would be by value so our modifications
 			// wouldn't have any effect.
@@ -173,16 +212,29 @@ func (s *MXReplicaSet) Create() error {
 				continue
 			}
 			if len(c.Env) == 0 {
-				c.Env = make([]v1.EnvVar, 0)
+				c.Env = make([]v1.EnvVar, 5)
 			}
-			c.Env = append(c.Env, v1.EnvVar{
-				Name:  "MX_CONFIG",
-				Value: string(mxConfigJson),
-			})
+			for _, r := range s.Job.job.Spec.ReplicaSpecs {
+				switch r.MxReplicaType {
+				case spec.SCHEDULER:
+					c.Env[0].Name = "DMLC_PS_ROOT_PORT"
+					c.Env[0].Value = strconv.Itoa(int(*r.PsRootPort))
+					c.Env[1].Name = "DMLC_PS_ROOT_URI"
+					c.Env[1].Value = fmt.Sprintf("%v-%v-%v-%v", s.Job.job.Metadata.Name, strings.ToLower(string(r.MxReplicaType)), s.Job.job.Spec.RuntimeId, 0)
+				case spec.SERVER:
+					c.Env[2].Name = "DMLC_NUM_SERVER"
+					c.Env[2].Value = strconv.Itoa(int(*r.Replicas))
+				case spec.WORKER:
+					c.Env[3].Name = "DMLC_NUM_WORKER"
+					c.Env[3].Value = strconv.Itoa(int(*r.Replicas))
+				}
+			}
+			c.Env[4].Name = "DMLC_ROLE"
+			c.Env[4].Value = string(s.Spec.MxReplicaType)
 		}
 
 		log.Infof("Creating Job: %v", newJ.ObjectMeta.Name)
-		_, err = s.ClientSet.BatchV1().Jobs(s.Job.job.Metadata.Namespace).Create(newJ)
+		_, err := s.ClientSet.BatchV1().Jobs(s.Job.job.Metadata.Namespace).Create(newJ)
 
 		// If the job already exists do nothing.
 		if err != nil {

@@ -1,0 +1,15 @@
+apiVersion: "mlkube.io/v1beta1"
+kind: "MxJob"
+metadata:
+  name: "example-local-job"
+spec:
+  jobMode: "local"
+  replicaSpecs:
+    - replicas: 1
+      mxReplicaType: WORKER
+      template:
+        spec:
+          containers:
+            - image: 10.199.192.16/tensorflow/wd-mxnet:cuda8.0
+              name: mxnet
+          restartPolicy: OnFailure

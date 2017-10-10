@@ -7,8 +7,10 @@ import (
 )
 
 var (
+	// SchemeBuilder for
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	AddToScheme   = SchemeBuilder.AddToScheme
+	// AddToScheme for
+	AddToScheme = SchemeBuilder.AddToScheme
 )
 
 // SchemeGroupVersion is the group version used to register these objects.

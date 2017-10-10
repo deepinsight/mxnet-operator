@@ -28,7 +28,7 @@ func TestMXReplicaSet(t *testing.T) {
 					Replicas:      proto.Int32(2),
 					PsRootPort:    proto.Int32(10),
 					Template:      &v1.PodTemplateSpec{},
-					MxReplicaType: spec.PS,
+					MxReplicaType: spec.SERVER,
 				},
 			},
 		},

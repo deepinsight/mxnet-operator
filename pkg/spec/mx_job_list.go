@@ -22,9 +22,13 @@ type MxJobList struct {
 // - We include `Metadata` field in object explicitly.
 // - we have the code below to work around a known problem with third-party resources and ugorji.
 
+// MxJobListCopy for MxJobList
 type MxJobListCopy MxJobList
+
+// MxJobCopy for MxJob
 type MxJobCopy MxJob
 
+// UnmarshalJSON for MxJob
 func (c *MxJob) UnmarshalJSON(data []byte) error {
 	tmp := MxJobCopy{}
 	err := json.Unmarshal(data, &tmp)
@@ -36,6 +40,7 @@ func (c *MxJob) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// UnmarshalJSON for MxJobList
 func (cl *MxJobList) UnmarshalJSON(data []byte) error {
 	tmp := MxJobListCopy{}
 	err := json.Unmarshal(data, &tmp)

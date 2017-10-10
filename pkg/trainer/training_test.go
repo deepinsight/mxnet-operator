@@ -1,7 +1,6 @@
 package trainer
 
 import (
-	"reflect"
 	"testing"
 
 	"sync"
@@ -73,104 +72,6 @@ func TestIsRetryableTerminationState(t *testing.T) {
 	}
 }
 
-func TestClusterSpec(t *testing.T) {
-	type TestCase struct {
-		Spec     *spec.MxJob
-		Expected map[string][]string
-	}
-
-	cases := []TestCase{
-		{
-			Spec: &spec.MxJob{
-				Spec: spec.MxJobSpec{
-					RuntimeId: "runtime",
-					ReplicaSpecs: []*spec.MxReplicaSpec{
-						{
-							Replicas:   proto.Int32(2),
-							PsRootPort: proto.Int32(22),
-							Template: &v1.PodTemplateSpec{
-								Spec: v1.PodSpec{
-									Containers: []v1.Container{
-										{
-											Name: "tensorflow",
-										},
-									},
-								},
-							},
-							MxReplicaType: spec.PS,
-						},
-						{
-							Replicas:   proto.Int32(1),
-							PsRootPort: proto.Int32(42),
-							Template: &v1.PodTemplateSpec{
-								Spec: v1.PodSpec{
-									Containers: []v1.Container{
-										{
-											Name: "tensorflow",
-										},
-									},
-								},
-							},
-							MxReplicaType: spec.MASTER,
-						},
-						{
-							Replicas:   proto.Int32(3),
-							PsRootPort: proto.Int32(40),
-							Template: &v1.PodTemplateSpec{
-								Spec: v1.PodSpec{
-									Containers: []v1.Container{
-										{
-											Name: "tensorflow",
-										},
-									},
-								},
-							},
-							MxReplicaType: spec.WORKER,
-						},
-					},
-				},
-			},
-
-			Expected: map[string][]string{
-				"ps":     []string{"ps-runtime-0:22", "ps-runtime-1:22"},
-				"master": []string{"master-runtime-0:42"},
-				"worker": []string{"worker-runtime-0:40", "worker-runtime-1:40", "worker-runtime-2:40"},
-			},
-		},
-	}
-
-	for _, c := range cases {
-
-		clientSet := fake.NewSimpleClientset()
-
-		stopC := make(chan struct{})
-
-		wg := &sync.WaitGroup{}
-		job, err := initJob(clientSet, &mxJobFake.MxJobClientFake{}, c.Spec, stopC, wg)
-
-		if err != nil {
-			t.Fatalf("initJob failed: %v", err)
-		}
-
-		if err := job.setup(&spec.ControllerConfig{}); err != nil {
-			t.Fatalf("job.setup() failed: %v", err)
-		}
-
-		actual := job.ClusterSpec()
-
-		for k, v := range c.Expected {
-			actualV, ok := actual[k]
-			if !ok {
-				t.Errorf("Actual cluster spec is missing key: %v", k)
-				continue
-			}
-			if !reflect.DeepEqual(actualV, v) {
-				t.Errorf("Key %v got %v want %v", k, actualV, v)
-			}
-		}
-	}
-}
-
 func TestJobSetup(t *testing.T) {
 	// Verify the setup will fill in the RuntimeId.
 	clientSet := fake.NewSimpleClientset()
@@ -197,7 +98,7 @@ func TestJobSetup(t *testing.T) {
 									},
 								},
 							},
-							MxReplicaType: spec.PS,
+							MxReplicaType: spec.SERVER,
 						},
 					},
 				},
@@ -225,7 +126,7 @@ func TestJobSetup(t *testing.T) {
 									},
 								},
 							},
-							MxReplicaType: spec.PS,
+							MxReplicaType: spec.SERVER,
 						},
 					},
 				},
