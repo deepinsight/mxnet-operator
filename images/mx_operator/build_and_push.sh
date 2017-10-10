@@ -18,9 +18,9 @@ fi
 
 DIR=`mktemp -d`
 echo Use ${DIR} as context
-go install github.com/deepinsight/mxnet-operator/cmd/tf_operator
+go install github.com/deepinsight/mxnet-operator/cmd/mx_operator
 go install github.com/deepinsight/mxnet-operator/test/e2e
-cp ${GOPATH}/bin/tf_operator ${DIR}/
+cp ${GOPATH}/bin/mx_operator ${DIR}/
 cp ${GOPATH}/bin/e2e ${DIR}/
 cp ${SRC_DIR}/Dockerfile ${DIR}/
 REGISTRY=10.199.192.16

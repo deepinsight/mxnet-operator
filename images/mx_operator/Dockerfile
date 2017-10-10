@@ -3,10 +3,10 @@ FROM golang:1.8.2
 
 RUN mkdir -p /opt/mlkube
 RUN mkdir -p /opt/mlkube/test
-COPY tf_operator /opt/mlkube
+COPY mx_operator /opt/mlkube
 COPY e2e /opt/mlkube/test
-RUN chmod a+x /opt/mlkube/tf_operator
+RUN chmod a+x /opt/mlkube/mx_operator
 RUN chmod a+x /opt/mlkube/test/e2e
 
 # TODO(jlewi): Reduce log level.
-ENTRYPOINT ["/opt/mlkube/tf_operator", "-alsologtostderr"]
+ENTRYPOINT ["/opt/mlkube/mx_operator", "-alsologtostderr"]
