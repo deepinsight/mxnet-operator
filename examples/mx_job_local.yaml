@@ -10,6 +10,9 @@ spec:
       template:
         spec:
           containers:
-            - image: 10.199.192.16/tensorflow/wd-mxnet:cuda8.0
+            - image: 10.199.192.16/tensorflow/wd-mxnet-cpu-local
               name: mxnet
+              command: ["python"]
+              args: ["train_cifar10.py","--num-epochs=10","--model-prefix=./wltest","--num-layers=2"]
+              workingDir: "/mxnet/example/image-classification"                
           restartPolicy: OnFailure
