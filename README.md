@@ -15,7 +15,7 @@ Scheduler(only one instance in a training cluster).
 
 K8s makes it easy to configure and deploy each set of MXNet replicas. Various tools like
  [helm](https://github.com/kubernetes/helm) and [ksonnet](http://ksonnet.heptio.com/) can
- be used to simplify generating the configs for a MXNet job.
+ be used to simplify generating the configs for a MXNet job. Helm will be supported a few days later.
  
  However, in addition to generating the configs we need some custom control logic because
  K8s built-in controllers (Jobs, ReplicaSets, StatefulSets, etc...) don't provide the semantics
@@ -26,20 +26,17 @@ K8s makes it easy to configure and deploy each set of MXNet replicas. Various to
  and [Operator](https://coreos.com/blog/introducing-operators.html) to manage a MXNet
  job on K8s.
 
-TODO
-<!--
-
-MxJob provides a K8s resource representing a single, distributed, TensorFlow job. 
-The Spec and Status (defined in [mx_job.go](https://github.com/jlewi/mlkube.io/blob/master/pkg/spec/mx_job.go))
-are customized for TensorFlow. The spec allows specifying the Docker image and arguments to use for each TensorFlow
-replica (i.e. master, worker, and parameter server). The status provides relevant information such as the number of
+MxJob provides a K8s resource representing a single, distributed, mxnet training job. 
+The Spec and Status (defined in [mx_job.go](pkg/spec/mx_job.go)
+are customized for MXNet. The spec allows specifying the Docker image and arguments to use for each MXNet
+replica (i.e. scheduler, worker, and parameter server). The status provides relevant information such as the number of
 replicas in various states.
 
-Using a TPR gives users the ability to create and manage TF Jobs just like builtin K8s resources. For example to
+Using a CRD gives users the ability to create and manage mxnet Jobs just like builtin K8s resources. For example to
 create a job
 
 ```
-kubectl create -f examples/tf_job.yaml
+kubectl create -f examples/mx_job_local.yaml
 ```
 
 To list jobs
@@ -47,16 +44,16 @@ To list jobs
 ```
 kubectl get mxjobs
 
-NAME          KINDS
-example-job   MxJob.v1beta1.mlkube.io
+NAME               KINDS
+example-dist-job   MxJob.v1beta1.mlkube.io
 ```
 
 ## Design
 
 The code is closely modeled on Coreos's [etcd-operator](https://github.com/coreos/etcd-operator).
 
-The MxJob Spec(defined in [mx_job.go](https://github.com/jlewi/mlkube.io/blob/master/pkg/spec/mx_job.go)) 
-reuses the existing Kubernetes structure PodTemplateSpec to describe TensorFlow processes. 
+The MxJob Spec(defined in [mx_job.go](pkg/spec/mx_job.go)
+reuses the existing Kubernetes structure PodTemplateSpec to describe MXNet processes. 
 We use PodTemplateSpec because we want to make it easy for users to 
   configure the processes; for example setting resource requirements or adding volumes. 
   We expect
@@ -69,34 +66,41 @@ Leader election allows a K8s deployment resource to be used to upgrade the opera
 
 1. Clone the repository
 
-    ```
-    git clone https://github.com/jlewi/mlkube.io/
-    ```
 
-1. Deploy the operator
+2. Deploy the operator
 
-   ```
-   helm install mx-job-chart/ -n mx-job --wait --replace
-   ```
+```
+kubec create -f examples/mx_operator_deploy.yaml
+```
 
-1. Make sure the operator is running
+3. Create distributed mxjob demo.
 
-    ```
-    kubectl get pods
-    
-    NAME                               READY     STATUS    RESTARTS   AGE
-    mx-job-operator-3083500267-wxj43   1/1       Running   0          48m
+```
+kubectl create -f examples/mx_job_dist.yaml
+kubectl get job
+NAME                                DESIRED   SUCCESSFUL   AGE
+example-dist-job-scheduler-1kkf-0   1         1            1h
+example-dist-job-server-1kkf-0      1         1            1h
+example-dist-job-server-1kkf-1      1         1            1h
+example-dist-job-worker-1kkf-0      1         1            1h
+example-dist-job-worker-1kkf-1      1         1            1h
+example-dist-job-worker-1kkf-2      1         1            1h
 
-    ```
-
-1. Run the helm tests
-
-    ```
-    helm test mx-job
-    RUNNING: mx-job-tfjob-test-pqxkwk
-    PASSED: mx-job-tfjob-test-pqxkwk
-    ```
-
+kubectl logs -f example-dist-job-worker-1kkf-2-hz22k
+INFO:root:start with arguments Namespace(batch_size=128, benchmark=0, data_nthreads=4,     data_train='data/cifar10_train.rec', data_val='data/cifar10_val.rec', disp_batches=20, dtype='float32', gpus=None, image_shape='3,28,28', kv_store='dist_device_sync', load_epoch=None, lr=0.05, lr_factor=0.1, lr_step_epochs='200,250', max_random_aspect_ratio=0, max_random_h=36, max_random_l=50, max_random_rotate_angle=0, max_random_s=50, max_random_scale=1, max_random_shear_ratio=0, min_random_scale=1, model_prefix='./wltest', mom=0.9, monitor=0, network='resnet', num_classes=10, num_epochs=10, num_examples=50000, num_layers=2, optimizer='sgd', pad_size=4, random_crop=1, random_mirror=1, rgb_mean='123.68,116.779,103.939', test_io=0, top_k=0, wd=0.0001)
+[02:52:36] src/io/iter_image_recordio_2.cc:153: ImageRecordIOParser2: data/cifar10_train.rec, use 1 threads for decoding..
+[02:52:37] src/io/iter_image_recordio_2.cc:153: ImageRecordIOParser2: data/cifar10_val.rec, use 1 threads for decoding..
+INFO:root:Epoch[0] Batch [20]	Speed: 84.39 samples/sec	accuracy=0.159970
+INFO:root:Epoch[0] Batch [40]	Speed: 85.53 samples/sec	accuracy=0.250391
+INFO:root:Epoch[0] Batch [60]	Speed: 90.39 samples/sec	accuracy=0.284375
+INFO:root:Epoch[0] Batch [80]	Speed: 89.56 samples/sec	accuracy=0.294531
+INFO:root:Epoch[0] Batch [100]	Speed: 91.03 samples/sec	accuracy=0.337500
+INFO:root:Epoch[0] Batch [120]	Speed: 85.62 samples/sec	accuracy=0.342187
+INFO:root:Epoch[0] Train-accuracy=0.363281
+INFO:root:Epoch[0] Time cost=190.507
+INFO:root:Saved checkpoint to "./wltest-2-0001.params"
+ ```
+<!--
 ## Using GPUs
 
 The use of GPUs and K8s is still in flux. The following works with GKE & K8s 1.7.2. If this doesn't work on 
@@ -161,106 +165,11 @@ spec:
                   alpha.kubernetes.io/nvidia-gpu: 1
           restartPolicy: OnFailure
 ```
-
-### Requesting a TensorBoard instance
-
-You can also ask the `MxJob` operator to create a TensorBoard instance to monitor your training.
-Here are the configuration options for TensorBoard:
-
-| Name | Description | Required | Default |
-|---|---|---|---|
-| `logDir` | Specifies the directory where TensorBoard will look to find TensorFlow event files that it can display | Yes | `None` | 
-| `volumes` | `Volumes` information that will be passed to the TensorBoard `deployment` | No | [] | 
-| `volumeMounts` | `VolumeMounts` information that will be passed to the TensorBoard `deployment` | No | [] | 
-| `serviceType` | `ServiceType` information that will be passed to the TensorBoard `service`| No | `ClusterIP` | 
-
-For example:
-
-```
-apiVersion: "mlkube.io/v1beta1"
-kind: "MxJob"
-metadata:
-  name: "tf-smoke-gpu"
-spec:
-  replica_specs:
-    - replicas: 1
-      PsRootPort: 9091
-      mxReplicaType: MASTER
-      template:
-        spec:
-          containers:
-            - image: gcr.io/tf-on-k8s-dogfood/tf_sample_gpu:latest
-              name: tensorflow
-              resources:
-                limits:
-                  alpha.kubernetes.io/nvidia-gpu: 1
-          restartPolicy: OnFailure
-  tensorboard:
-    logDir: /tmp/tensorflow
-    serviceType: LoadBalancer
-    volumes:
-      - name: azurefile
-        azureFile:
-            secretName: azure-secret
-            shareName: data
-            readOnly: false
-    volumeMounts:
-      - mountPath: /tmp/tensorflow
-        name: azurefile
-    
-```
-
-
-## Run the example
-
-A simplistic TF program is in the directory tf_sample. 
-
-1. Start the example
-
-    ```
-    helm install --name=mx-job ./examples/tf_job
-    ```
-    
-1. Check the job
-
-    ```
-    kubectl get mxjobs -o yaml
-    ```
-
+-->
 ## Project Status
 
 This is very much a prototype.
 
-### Logging
-
-Logging still needs work.
-
-We'd like to tag log entries with semantic information suitable for TensorFlow. For example, we'd like to tag entries with metadata indicating the
-replica that produced the log entry. There are two issues here
-
-1. Tagging Tensorflow entries with appropriate semantic information
-
-    * Usinge Python sitecustomize.py might facilitate injecting a custom log handler that outputs json entries.
-    * For parameter servers, we might want to just run the TensorFlow standard server and its not clear how we
-      would convert those logs to json.
-      
-1. Integrate with Kubernetes cluster level logging.
-
-    * We'd like the logs to integrate nicely with whatever cluster level logging users configure.
-    * For example, on GCP we'd like the log entries to be automatically streamed to Stackdriver and indexed by the
-      TensorFlow metadata to facilitate querying e.g. by replica.
-    * GCP's fluentd logger is supposed to automatically handle JSON logs
-
-Additionally, we'd like TensorFlow logs to be available via
-
-```
-kubectl logs
-```
-
-So that users don't need to depend on cluster level logging just to see basic logs.
-
-In the current implementation, pods aren't deleted until the MxJob is deleted. This allows standard out/error to be fetched
-via kubectl. Unfortunately, this leaves PODs in the RUNNING state when the MxJob is marked as done which is confusing. 
 
 ### Status information
 
@@ -289,14 +198,6 @@ The helm package provides some basic E2E tests.
 
 ## Building the Operator
 
-Create a symbolic link inside your GOPATH to the location you checked out the code
-
-    ```
-    mkdir -p ${GOPATH}/src/github.com/jlewi
-    ln -sf ${GIT_TRAINING} ${GOPATH}/src/mlkube.io
-    ```
-
-  * GIT_TRAINING should be the location where you checked out https://github.com/jlewi/mlkube.io
 
 Resolve dependencies (if you don't have glide install, check how to do it [here](https://github.com/Masterminds/glide/blob/master/README.md#install))
 
@@ -304,11 +205,6 @@ Resolve dependencies (if you don't have glide install, check how to do it [here]
 glide install
 ```
 
-Build it
-
-```
-go install github.com/jlewi/mlkube.io/cmd/tf_operator
-```
 
 ## Runing the Operator Locally
 
@@ -341,4 +237,3 @@ with the versions vendored by mlkube; e.g.
 ```
 rm -rf  vendor/k8s.io/apiextensions-apiserver/vendor
 ```
--->
