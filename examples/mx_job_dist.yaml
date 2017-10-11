@@ -17,7 +17,7 @@ spec:
               args: ["train_cifar10.py"]
               workingDir: "/mxnet/example/image-classification"
           restartPolicy: OnFailure
-    - replicas: 1
+    - replicas: 2 
       mxReplicaType: SERVER
       template:
         spec:
@@ -28,7 +28,7 @@ spec:
               args: ["train_cifar10.py"]
               workingDir: "/mxnet/example/image-classification"
           restartPolicy: OnFailure
-    - replicas: 1
+    - replicas: 3
       mxReplicaType: WORKER
       template:
         spec:
