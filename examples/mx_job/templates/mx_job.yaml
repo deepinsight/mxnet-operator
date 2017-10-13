@@ -1,0 +1,41 @@
+apiVersion: "mlkube.io/v1beta1"
+kind: "MxJob"
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replica_specs:
+  jobMode: "dist"  
+    - replicas: 1
+      PsRootPort: 9091
+      mxReplicaType: SCHEDULER
+      template:
+        spec:
+          containers:
+            - image: {{ .Values.image }} 
+              name: mxnet
+              command: ["python"]
+              args: ["train_cifar10.py"]
+              workingDir: "/mxnet/example/image-classification"              
+          restartPolicy: OnFailure
+    - replicas: 2
+      mxReplicaType: SERVER
+      template:
+        spec:
+          containers:
+            - image: {{ .Values.image }}
+              name: mxnet
+              command: ["python"]
+              args: ["train_cifar10.py"]
+              workingDir: "/mxnet/example/image-classification"              
+          restartPolicy: OnFailure
+    - replicas: 3
+      mxReplicaType: WORKER
+      template:
+        spec:
+          containers:
+            - image: {{ .Values.image }}
+              name: mxnet
+              command: ["python"]
+              args: ["train_cifar10.py","--num-epochs=10","--model-prefix=./wltest","--num-layers=2","--kv-store=dist_device_sync"]
+              workingDir: "/mxnet/example/image-classification"            
+          restartPolicy: OnFailure          
