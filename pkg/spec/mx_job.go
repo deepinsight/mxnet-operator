@@ -18,7 +18,7 @@ const (
 	// CRDKindPlural k8s crd Plural
 	CRDKindPlural = "mxjobs"
 	// CRDGroup k8s crd group
-	CRDGroup = "mlkube.io"
+	CRDGroup = "mxnet.mlkube.io"
 	// CRDVersion k8s crd version
 	CRDVersion = "v1beta1"
 	// CRDApiVersion k8s crd api version
