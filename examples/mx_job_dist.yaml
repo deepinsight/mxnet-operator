@@ -1,4 +1,4 @@
-apiVersion: "mlkube.io/v1beta1"
+apiVersion: "mxnet.mlkube.io/v1beta1"
 kind: "MxJob"
 metadata:
   name: "example-dist-job"
