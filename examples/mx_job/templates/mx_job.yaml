@@ -46,4 +46,3 @@ spec:
             operator: "Exists"
             effect: "NoSchedule"
           restartPolicy: OnFailure
-          restartPolicy: OnFailure
