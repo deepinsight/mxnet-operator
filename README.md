@@ -1,5 +1,5 @@
 # K8s Custom Resource and Operator For MXNet jobs 
-  (Forks initally from tf-operator project https://github.com/jlewi/mlkube.io.git)
+  (Forks initally from tf-operator project https://github.com/jlewi/mlkube.io.git now moved to      https://github.com/tensorflow/k8s)
 
 ## Requirements
 
@@ -62,7 +62,7 @@ with Kubernetes.
 
 Leader election allows a K8s deployment resource to be used to upgrade the operator.
 
-## Installing the TPR and operator on your k8s cluster
+## Installing the CRD and operator on your k8s cluster
 
 1. Clone the repository
 
