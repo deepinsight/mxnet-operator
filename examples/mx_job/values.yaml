@@ -1,4 +1,4 @@
 # Default values for mx_job.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-image: 10.199.192.16/tensorflow/wd-mxnet-cpu-dist
+image: 10.199.192.16/library/mxnet-gpu-dist:0.12.0

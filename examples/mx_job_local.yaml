@@ -10,9 +10,12 @@ spec:
       template:
         spec:
           containers:
-            - image: 10.199.192.16/tensorflow/wd-mxnet-cpu-local
+            - image: 10.199.192.16/library/mxnet-gpu-local:0.12.0
               name: mxnet
               command: ["python"]
-              args: ["train_cifar10.py","--num-epochs=10","--model-prefix=./wltest","--num-layers=2"]
-              workingDir: "/mxnet/example/image-classification"                
+              args: ["train_cifar10.py","--num-epochs=10","--gpus=0","--model-prefix=./wltest","--num-layers=2"]
+              workingDir: "/mxnet/example/image-classification"   
+              resources:
+                limits:
+                  alpha.kubernetes.io/nvidia-gpu: 1                           
           restartPolicy: OnFailure
