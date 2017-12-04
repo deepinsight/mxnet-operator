@@ -1,4 +1,4 @@
-#Build docker image for mxnet from source
+# Build docker image for mxnet from source, support distributed training
 
 - Get the base image from ubuntu 16.04
 
@@ -19,3 +19,5 @@
 ```
   docker build -f dockerfile.mx.gpu.dist .
 ```
+# build scprit in dockerfile.mx.gpu.dist will add USE_DIST_KVSTORE=1 for the distributed training
+
