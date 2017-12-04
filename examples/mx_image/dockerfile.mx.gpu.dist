@@ -12,3 +12,5 @@ RUN cd /mxnet/python; pip install -e .
 COPY clean.sh ./
 RUN chmod +x ./clean.sh
 RUN ./clean.sh
+RUN ln -s /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so /usr/lib/libcuda.so.1
+ENTRYPOINT /bin/bash
