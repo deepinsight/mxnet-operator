@@ -297,11 +297,11 @@ const (
 
 // MxJobCondition mxnet job condition
 type MxJobCondition struct {
-	Type MxJobConditionType `json:"type"`
+	Type MxJobConditionType `json:"type,omitempty"`
 
-	Reason string `json:"reason"`
+	Reason string `json:"reason,omitempty"`
 
-	TransitionTime string `json:"transitionTime"`
+	TransitionTime string `json:"transitionTime,omitempty"`
 }
 
 // MxJobConditionType mxnet job condition type
@@ -338,18 +338,18 @@ const (
 // MxJobStatus mxnet job status
 type MxJobStatus struct {
 	// Phase is the MxJob running phase
-	Phase  MxJobPhase `json:"phase"`
-	Reason string     `json:"reason"`
+	Phase  MxJobPhase `json:"phase,omitempty"`
+	Reason string     `json:"reason,omitempty"`
 
 	// ControlPuased indicates the operator pauses the control of the cluster.
 	// TODO(jlewi): I think we can get rid of ControlPaued.
 	ControlPaused bool `json:"controlPaused"`
 
 	// Condition keeps ten most recent cluster conditions
-	Conditions []MxJobCondition `json:"conditions"`
+	Conditions []MxJobCondition `json:"conditions,omitempty"`
 
 	// State indicates the state of the job.
-	State State `json:"state"`
+	State State `json:"state,omitempty"`
 
 	// ReplicaStatuses specifies the status of each Mx replica.
 	ReplicaStatuses []*MxReplicaStatus `json:"replicaStatuses"`
