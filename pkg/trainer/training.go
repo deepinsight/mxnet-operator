@@ -177,17 +177,25 @@ func (j *TrainingJob) GetStatus() (spec.State, []*spec.MxReplicaStatus, error) {
 			state = spec.StateFailed
 		}
 	}
-	/*
-		if v, ok := replicaSetStates[spec.MASTER]; ok && v == spec.ReplicaStateSucceeded {
+	if j.job.Spec.JobMode == spec.LocalJob {
+		if v, ok := replicaSetStates[spec.WORKER]; ok && v == spec.ReplicaStateSucceeded {
 			state = spec.StateSucceeded
 			return state, replicaStatuses, nil
 		}
+	} else if j.job.Spec.JobMode == spec.DistJob {
+		if v, ok := replicaSetStates[spec.SCHEDULER]; ok && v == spec.ReplicaStateSucceeded {
+			state = spec.StateSucceeded
+			return state, replicaStatuses, nil
+		}
+	}
 
-		if v, ok := replicaSetStates[spec.MASTER]; ok && v == spec.ReplicaStateFailed {
+	for _, s := range replicaSetStates {
+		if s == spec.ReplicaStateFailed {
 			state = spec.StateFailed
 			return state, replicaStatuses, nil
 		}
-	*/
+	}
+
 	state = spec.StateRunning
 	return state, replicaStatuses, nil
 }
@@ -383,14 +391,6 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 		close(j.stopCh)
 	}()
 
-	// Update the phase to running.
-	j.status.SetPhase(spec.MxJobPhaseRunning)
-	if err := j.updateTPRStatus(); err != nil {
-		log.Warningf("failed to update TPR status: %v", err)
-	}
-	log.Infof("start running...")
-
-	var rerr error
 	for {
 		select {
 		case <-stopC:
@@ -426,30 +426,37 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 			// TODO(jlewi): Can we determine from the TPR status whether we should
 			// Create the resources or not? We need to ensure the resources exist so for
 			// now we always call Create.
-			if j.job.Status.Phase == spec.MxJobPhaseRunning {
+			if j.job.Status.Phase == spec.MxJobPhaseCreating {
 				// We call Create to make sure all the resources exist and are running.
 				if cErr := j.createResources(); cErr != nil {
 					log.Errorf("trainingJobCreateReplicas() error; %v", cErr)
-				}
-
-				state, replicaStatuses, err := j.GetStatus()
-
-				j.status.ReplicaStatuses = replicaStatuses
-				if err != nil {
-					log.Errorf("GetStatus() for job %v returned error: %v", j.job.Metadata.Name, err)
-				}
-				// TODO(jlewi): We should update the Phase if we detect the job is done.
-				if state == spec.StateFailed {
-					log.Errorf("Master failed Job: %v.", j.job.Metadata.Name)
-					j.status.SetPhase(spec.MxJobPhaseDone)
-					j.status.SetState(spec.StateFailed)
-				} else if state == spec.StateSucceeded {
-					log.Infof("Master succeeded Job: %v.", j.job.Metadata.Name)
-					j.status.SetPhase(spec.MxJobPhaseDone)
-					j.status.SetState(spec.StateSucceeded)
 				} else {
-					log.V(1).Infof("Job %v status=%v", j.job.Metadata.Name, util.Pformat(j.status))
+					// Update the phase to running.
+					j.status.SetPhase(spec.MxJobPhaseRunning)
+					if err := j.updateTPRStatus(); err != nil {
+						log.Warningf("failed to update TPR status: %v", err)
+					}
+					log.Infof("start running...")
 				}
+			}
+
+			state, replicaStatuses, err := j.GetStatus()
+
+			j.status.ReplicaStatuses = replicaStatuses
+			if err != nil {
+				log.Errorf("GetStatus() for job %v returned error: %v", j.job.Metadata.Name, err)
+			}
+			// TODO(jlewi): We should update the Phase if we detect the job is done.
+			if state == spec.StateFailed {
+				log.Errorf("Master failed Job: %v.", j.job.Metadata.Name)
+				j.status.SetPhase(spec.MxJobPhaseDone)
+				j.status.SetState(spec.StateFailed)
+			} else if state == spec.StateSucceeded {
+				log.Infof("Master succeeded Job: %v.", j.job.Metadata.Name)
+				j.status.SetPhase(spec.MxJobPhaseDone)
+				j.status.SetState(spec.StateSucceeded)
+			} else {
+				log.V(1).Infof("Job %v status=%v", j.job.Metadata.Name, util.Pformat(j.status))
 			}
 
 			// If the phase changed we should update the TPR.
@@ -465,27 +472,7 @@ func (j *TrainingJob) run(stopC <-chan struct{}) {
 				// Return from run because we want to stop reconciling the object.
 				return
 			}
-
-			if rerr != nil {
-				log.Errorf("failed to reconcile job %v, error: %v", j.job.Metadata.Name, rerr)
-				break
-			}
-
-			// updateTPRStatus will update the status of the TPR with c.Status if c.Status
-			// doesn't match c.Cluster.status. So you can chang c.Status in order to propogate
-			// changes to the TPR status.
-			if err := j.updateTPRStatus(); err != nil {
-				log.Warningf("Job %v; failed to update TPR status error: %v", j.job.Metadata.Name, err)
-			}
 		}
-
-		//if isFatalError(rerr) {
-		//	clusterFailed = true
-		//	j.status.SetReason(rerr.Error())
-		//
-		//	log.Errorf("cluster failed: %v", rerr)
-		//	return
-		//}
 	}
 }
 
